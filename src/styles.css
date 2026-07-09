@@ -1,5 +1,37 @@
-/* Fonts: condensed industrial display + workhorse grotesque body. */
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+/* Fonts: marker-on-plywood display + pen-handwriting body.
+   Oswald survives only for the wordmark. Self-hosted from /fonts so the
+   page has no runtime dependency on Google. */
+@font-face {
+  font-family: 'Permanent Marker';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/permanent-marker-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Kalam';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/kalam-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Kalam';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/kalam-700.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Oswald';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/oswald-700.woff2') format('woff2');
+}
 
 :root {
   --teal-deep: #067f84; /* darkest band — primary brand teal */
@@ -14,8 +46,9 @@
   --bone: #edeae2; /* body text — slightly dirty off-white, never #FFF */
 
   --hairline: rgba(237, 234, 226, 0.16);
-  --display: 'Oswald', 'Arial Narrow', sans-serif;
-  --body: 'Inter', system-ui, -apple-system, sans-serif;
+  --display: 'Permanent Marker', 'Comic Sans MS', cursive;
+  --body: 'Kalam', 'Comic Sans MS', cursive;
+  --wordmark: 'Oswald', 'Arial Narrow', sans-serif;
 }
 
 *,
@@ -33,7 +66,7 @@ body {
   background-color: var(--ink);
   color: var(--bone);
   font-family: var(--body);
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -102,7 +135,8 @@ body {
   align-items: center;
   text-decoration: none;
   color: var(--bone);
-  font-family: var(--display);
+  /* the one thing on the page that isn't handwritten — it's the brand */
+  font-family: var(--wordmark);
   font-weight: 700;
   font-size: 26px;
   letter-spacing: 0.02em;
@@ -126,9 +160,9 @@ body {
 
 .stamp {
   font-family: var(--display);
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.28em;
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--sky-teal);
   opacity: 0.72;
@@ -147,15 +181,17 @@ body {
 
 .hero__headline {
   font-family: var(--display);
-  font-weight: 700;
+  /* Permanent Marker ships one weight — no faux bold */
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.005em;
-  line-height: 0.96;
-  font-size: clamp(2.75rem, 12vw, 5.25rem);
+  line-height: 1.08;
+  /* marker is wider than the old condensed face — sized down to fit */
+  font-size: clamp(1.9rem, 8.6vw, 3.6rem);
   margin: 0 0 24px;
   color: var(--bone);
   /* off-register screen print: the teal pass missed by a few px */
-  text-shadow: 4px 3px 0 rgba(6, 127, 132, 0.55);
+  text-shadow: 3px 3px 0 rgba(6, 127, 132, 0.55);
 }
 
 /* each line stenciled separately — neither is quite level */
@@ -186,8 +222,8 @@ body {
 
 .hero__teaser {
   font-family: var(--display);
-  font-weight: 500;
-  font-size: clamp(0.98rem, 2.4vw, 1.12rem);
+  font-weight: 400;
+  font-size: clamp(1rem, 2.4vw, 1.15rem);
   letter-spacing: 0.01em;
   color: var(--aqua-pale);
   margin: 0;
@@ -229,10 +265,10 @@ body {
 .signup__label {
   display: block;
   font-family: var(--display);
-  font-weight: 600;
-  font-size: 11px;
+  font-weight: 400;
+  font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.09em;
   color: var(--sky-teal);
   margin-bottom: 7px;
 }
@@ -294,10 +330,10 @@ body {
 .signup__submit {
   width: 100%;
   font-family: var(--display);
-  font-weight: 700;
-  font-size: 15px;
+  font-weight: 400;
+  font-size: 17px;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.06em;
   color: var(--ink);
   background: var(--sea-green);
   border: 1px solid var(--sea-green);
@@ -333,7 +369,7 @@ body {
 
 .signup__done-line {
   font-family: var(--display);
-  font-weight: 700;
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   font-size: 1.6rem;
@@ -400,9 +436,9 @@ body {
 .teaser__tag {
   display: inline-block;
   font-family: var(--display);
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.32em;
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--sky-teal);
   opacity: 0.62;
@@ -464,9 +500,9 @@ body {
 .privacy__stamp-label {
   display: inline-block;
   font-family: var(--display);
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 0.3em;
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--sea-green);
   border: 2px solid var(--sea-green);
@@ -481,9 +517,9 @@ body {
 
 .privacy__copy {
   font-family: var(--display);
-  font-weight: 500;
-  font-size: clamp(1.15rem, 3.4vw, 1.55rem);
-  line-height: 1.32;
+  font-weight: 400;
+  font-size: clamp(1.1rem, 3.2vw, 1.45rem);
+  line-height: 1.45;
   letter-spacing: 0.005em;
   color: var(--bone);
   margin: 0;
@@ -510,9 +546,9 @@ body {
 .footer__copy {
   margin: 0;
   font-family: var(--display);
-  font-weight: 500;
-  font-size: 11px;
-  letter-spacing: 0.2em;
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--sky-teal);
   opacity: 0.6;
