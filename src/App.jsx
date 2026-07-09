@@ -50,6 +50,29 @@ function ContourMap() {
   )
 }
 
+// --- illustration: coffee ring ------------------------------------------------
+// A mug got set down on the depth map at some point. Two broken arcs, low
+// opacity, like a dried ring. Decorative only.
+
+function CoffeeRing() {
+  return (
+    <svg
+      className="coffee-ring"
+      viewBox="0 0 200 200"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <g fill="none" stroke="var(--bone)" strokeLinecap="round">
+        <path d="M100 14 A86 86 0 0 1 186 100 A86 86 0 0 1 118 184" strokeWidth="7" opacity="0.5" />
+        <path d="M96 186 A86 86 0 0 1 15 88" strokeWidth="5" opacity="0.35" />
+        <path d="M22 62 A86 86 0 0 1 74 18" strokeWidth="8" opacity="0.42" />
+        {/* inner slosh line */}
+        <path d="M100 26 A74 74 0 0 1 173 106" strokeWidth="3" opacity="0.28" />
+      </g>
+    </svg>
+  )
+}
+
 // --- illustration: film grain -----------------------------------------------
 // Subtle noise overlay across the whole page. Visible if you look for it.
 
@@ -75,7 +98,8 @@ function GrainOverlay() {
 function Wordmark() {
   return (
     <a className="wordmark" href="/" aria-label="waterlog home">
-      <span className="wordmark__wat">wat</span>
+      {/* The bobber sits in for the real "o" in waterlog — waterl(o)g. */}
+      <span className="wordmark__part">waterl</span>
       <span className="wordmark__bobber" aria-hidden="true">
         <svg viewBox="0 0 40 40" focusable="false">
           {/* top half — bright cork/foam */}
@@ -88,7 +112,7 @@ function Wordmark() {
           <line x1="20" y1="3" x2="20" y2="-4" stroke="var(--bone)" strokeWidth="2" strokeLinecap="round" />
         </svg>
       </span>
-      <span className="wordmark__rest">log</span>
+      <span className="wordmark__part">g</span>
     </a>
   )
 }
@@ -232,6 +256,7 @@ export default function App() {
   return (
     <>
       <ContourMap />
+      <CoffeeRing />
       <GrainOverlay />
 
       <main className="page">
@@ -242,9 +267,8 @@ export default function App() {
 
         <section className="hero">
           <h1 className="hero__headline">
-            Stop guessing.
-            <br />
-            Start patterning.
+            <span className="hero__line hero__line--1">Stop guessing.</span>
+            <span className="hero__line hero__line--2">Start patterning.</span>
           </h1>
 
           <p className="hero__subhead">
@@ -264,20 +288,29 @@ export default function App() {
 
         <section className="teasers" aria-label="What waterlog does">
           <hr className="rule" />
-          <p className="teaser-line">
-            A fishing log that learns your personal patterns from your own
-            catches.
-          </p>
+          <div className="teaser">
+            <span className="teaser__tag" aria-hidden="true">LOG 01</span>
+            <p className="teaser-line">
+              A fishing log that learns your personal patterns from your own
+              catches.
+            </p>
+          </div>
           <hr className="rule" />
-          <p className="teaser-line">
-            Log a catch in seconds. The app quietly records the conditions
-            around it.
-          </p>
+          <div className="teaser">
+            <span className="teaser__tag" aria-hidden="true">LOG 02</span>
+            <p className="teaser-line">
+              Log a catch in seconds. The app quietly records the conditions
+              around it.
+            </p>
+          </div>
           <hr className="rule" />
-          <p className="teaser-line">
-            Over time it tells you what actually works for you — not generic
-            cloudy-day, dark-lure folklore.
-          </p>
+          <div className="teaser">
+            <span className="teaser__tag" aria-hidden="true">LOG 03</span>
+            <p className="teaser-line">
+              Over time it tells you what actually works for you — not generic
+              cloudy-day, dark-lure folklore.
+            </p>
+          </div>
           <hr className="rule" />
         </section>
 

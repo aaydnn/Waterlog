@@ -63,6 +63,19 @@ body {
   mix-blend-mode: overlay;
 }
 
+/* somebody set a mug down on the depth map */
+.coffee-ring {
+  position: fixed;
+  top: 52%;
+  right: -70px;
+  width: 300px;
+  height: 300px;
+  z-index: 0;
+  opacity: 0.13;
+  transform: rotate(-14deg);
+  pointer-events: none;
+}
+
 /* --- page shell ----------------------------------------------------------- */
 
 .page {
@@ -98,10 +111,11 @@ body {
 
 .wordmark__bobber {
   display: inline-flex;
-  width: 0.82em;
-  height: 0.82em;
-  margin: 0 0.01em;
-  transform: translateY(0.06em);
+  width: 0.72em;
+  height: 0.72em;
+  margin: 0 0.03em;
+  /* cocked a few degrees, like it's riding a chop */
+  transform: translateY(0.08em) rotate(9deg);
 }
 
 .wordmark__bobber svg {
@@ -121,6 +135,8 @@ body {
   border: 1px solid var(--hairline);
   padding: 5px 9px;
   border-radius: 2px;
+  /* stamped on crooked */
+  transform: rotate(-1.6deg);
 }
 
 /* --- hero ----------------------------------------------------------------- */
@@ -134,11 +150,26 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.005em;
-  line-height: 0.94;
+  line-height: 0.96;
   font-size: clamp(2.75rem, 12vw, 5.25rem);
   margin: 0 0 24px;
   color: var(--bone);
-  text-shadow: 0 2px 0 rgba(4, 27, 29, 0.6);
+  /* off-register screen print: the teal pass missed by a few px */
+  text-shadow: 4px 3px 0 rgba(6, 127, 132, 0.55);
+}
+
+/* each line stenciled separately — neither is quite level */
+.hero__line {
+  display: block;
+  max-width: max-content;
+}
+
+.hero__line--1 {
+  transform: rotate(-1.1deg);
+}
+
+.hero__line--2 {
+  transform: rotate(0.6deg) translateX(0.18em);
 }
 
 .hero__subhead {
@@ -163,17 +194,32 @@ body {
   padding-top: 22px;
   border-top: 1px solid var(--hairline);
   max-width: 40ch;
+  transform: rotate(-0.35deg);
 }
 
 /* --- signup form ---------------------------------------------------------- */
 
 .signup {
+  position: relative;
   background: var(--ink-2);
   border: 1px solid var(--hairline);
   border-radius: 3px;
   padding: 22px 20px 24px;
   /* hand-ruled edge: a hairline shadow, not a soft glow */
   box-shadow: inset 0 0 0 1px rgba(6, 127, 132, 0.14);
+  /* sits a hair off level, like it was screwed to the dock post */
+  transform: rotate(-0.4deg);
+}
+
+/* second frame, misaligned — a print that didn't line up */
+.signup::after {
+  content: '';
+  position: absolute;
+  inset: -6px -4px -4px -7px;
+  border: 1px solid rgba(31, 174, 168, 0.22);
+  border-radius: 3px;
+  transform: rotate(0.5deg);
+  pointer-events: none;
 }
 
 .signup__field {
@@ -323,34 +369,114 @@ body {
   margin: 0;
 }
 
+/* ruled by hand — none of them quite straight, none the same length */
+.teasers .rule:nth-of-type(1) {
+  width: 96%;
+  transform: rotate(0.3deg);
+}
+
+.teasers .rule:nth-of-type(2) {
+  width: 88%;
+  margin-left: auto;
+  transform: rotate(-0.25deg);
+}
+
+.teasers .rule:nth-of-type(3) {
+  width: 93%;
+  transform: rotate(0.2deg);
+}
+
+.teasers .rule:nth-of-type(4) {
+  width: 84%;
+  margin-left: 4%;
+  transform: rotate(-0.35deg);
+}
+
+.teaser {
+  padding: 20px 2px;
+}
+
+/* stenciled crate tag on each entry */
+.teaser__tag {
+  display: inline-block;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--sky-teal);
+  opacity: 0.62;
+  border: 1px solid var(--hairline);
+  padding: 3px 8px 3px 10px;
+  margin-bottom: 10px;
+  transform: rotate(-1.4deg);
+}
+
+.teaser:nth-of-type(2) .teaser__tag {
+  transform: rotate(1deg);
+}
+
+.teaser:nth-of-type(3) .teaser__tag {
+  transform: rotate(-0.7deg) translateX(3px);
+}
+
+/* entries drift a little, like they were typed on different days */
+.teaser:nth-of-type(2) {
+  padding-left: 14px;
+}
+
+.teaser:nth-of-type(3) {
+  padding-left: 5px;
+}
+
 .teaser-line {
   font-size: clamp(1.02rem, 2.6vw, 1.18rem);
   color: var(--bone);
   opacity: 0.92;
   margin: 0;
-  padding: 20px 2px;
   max-width: 46ch;
 }
 
 /* --- privacy block -------------------------------------------------------- */
 
 .privacy {
+  position: relative;
   border: 1px solid var(--hairline);
   border-radius: 3px;
   background: var(--ink-2);
   padding: 26px 24px;
   margin-bottom: clamp(56px, 11vw, 88px);
   box-shadow: inset 0 0 0 1px rgba(6, 127, 132, 0.12);
+  transform: rotate(0.55deg);
 }
 
+.privacy::after {
+  content: '';
+  position: absolute;
+  inset: -5px -6px -7px -4px;
+  border: 1px solid rgba(6, 127, 132, 0.3);
+  border-radius: 3px;
+  transform: rotate(-0.45deg);
+  pointer-events: none;
+}
+
+/* rubber-stamped, pressed hard on one corner */
 .privacy__stamp-label {
+  display: inline-block;
   font-family: var(--display);
   font-weight: 700;
   font-size: 11px;
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--sea-green);
-  margin: 0 0 12px;
+  border: 2px solid var(--sea-green);
+  border-radius: 2px;
+  padding: 5px 10px 5px 13px;
+  margin: 0 0 16px;
+  transform: rotate(-2.4deg);
+  /* ink didn't take evenly */
+  border-right-color: rgba(97, 198, 154, 0.45);
+  border-bottom-color: rgba(97, 198, 154, 0.65);
 }
 
 .privacy__copy {
@@ -390,6 +516,8 @@ body {
   text-transform: uppercase;
   color: var(--sky-teal);
   opacity: 0.6;
+  transform: rotate(-0.5deg);
+  max-width: max-content;
 }
 
 /* --- small screens -------------------------------------------------------- */
