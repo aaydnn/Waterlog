@@ -1,7 +1,9 @@
 # waterlog — waitlist
 
-A single-page waitlist site. React + Vite, one stylesheet, deploys to
-Cloudflare Pages.
+A single-page waitlist site. React + Vite, one stylesheet. Deploys to
+Cloudflare either as a **Worker** (static assets + API, the current default in
+the dashboard) or as a **Pages** project. The API logic is shared between the
+two, so both behave identically.
 
 ## Develop
 
@@ -12,7 +14,46 @@ npm run build    # production build → dist/
 npm run preview  # serve the built dist/
 ```
 
-## Deploy (Cloudflare Pages)
+## Deploy A — Cloudflare Worker (recommended, matches the dashboard "Create a Worker" flow)
+
+Config lives in `wrangler.jsonc`; the Worker entry is `worker/index.js`, which
+serves the built `dist/` via the `ASSETS` binding and handles
+`POST /api/waitlist`.
+
+Git-connected build settings (Workers Builds wizard):
+
+- **Project name:** `waterlog` (keep it matching `name` in `wrangler.jsonc`)
+- **Build command:** `npm run build`
+- **Deploy command:** `npx wrangler deploy`
+
+Or deploy from your machine:
+
+```bash
+npm run build
+npx wrangler deploy      # same as: npm run deploy
+```
+
+Run it locally with the Worker runtime:
+
+```bash
+npm run build
+npx wrangler dev         # serves dist/ + /api/waitlist
+```
+
+### Waitlist storage (KV) for the Worker
+
+The endpoint writes to a KV namespace bound as `WAITLIST`. Until it's bound,
+signups return HTTP 500 ("storage is not configured") and the rest of the site
+works.
+
+```bash
+npx wrangler kv namespace create WAITLIST   # copy the printed id
+```
+
+Then uncomment the `kv_namespaces` block in `wrangler.jsonc`, paste the id, and
+redeploy (or push, if git-connected).
+
+## Deploy B — Cloudflare Pages
 
 - **Build command:** `npm run build`
 - **Build output directory:** `dist`

@@ -1,0 +1,29 @@
+{
+  // Worker name — keep this matching the project name in the Cloudflare
+  // dashboard (lowercase). If you named the project "Waterlog" in the wizard,
+  // that's fine; the deployed Worker is "waterlog".
+  "name": "waterlog",
+  "compatibility_date": "2025-01-01",
+  "main": "worker/index.js",
+
+  // Serve the Vite build. Static files are matched before the Worker runs;
+  // only non-asset paths (e.g. /api/waitlist) reach worker/index.js.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  }
+
+  // ── Waitlist storage (KV) ─────────────────────────────────────────────────
+  // The /api/waitlist endpoint writes to a KV namespace bound as WAITLIST.
+  // Until this is added, signups return HTTP 500 ("storage is not configured")
+  // but the rest of the site works.
+  //
+  // 1. Create the namespace:
+  //      npx wrangler kv namespace create WAITLIST
+  //    (copy the "id" it prints)
+  // 2. Uncomment the block below and paste the id, then redeploy / push.
+  //
+  // "kv_namespaces": [
+  //   { "binding": "WAITLIST", "id": "<your-kv-namespace-id>" }
+  // ]
+}
