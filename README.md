@@ -1,85 +1,51 @@
-# waterlog — waitlist
+# WaterLog
 
-A single-page waitlist site. React + Vite, one stylesheet. Deploys to
-Cloudflare either as a **Worker** (static assets + API, the current default in
-the dashboard) or as a **Pages** project. The API logic is shared between the
-two, so both behave identically.
+Personal fishing analytics PWA. pnpm monorepo:
+
+| Path | What |
+| --- | --- |
+| `apps/web` | React + Vite PWA (the product) |
+| `apps/waitlist` | Pre-launch waitlist site (see `docs/adr/0002`) |
+| `workers/api` | Hono API on Cloudflare Workers (D1, R2, Queues) |
+| `workers/enrich` | Queue consumer — condition enrichment |
+| `workers/cron` | Scheduled worker — nightly pattern recompute |
+| `packages/schema` | Zod schemas mirroring the D1 tables — the single source of truth for payload shapes |
+| `packages/patterns` | Pattern math (Epic 4) |
+| `migrations/` | Append-only D1 migrations (`NNNN_description.sql`) + dev seed |
+| `docs/adr/` | Architecture decision records |
 
 ## Develop
 
 ```bash
-npm install
-npm run dev      # local dev server
-npm run build    # production build → dist/
-npm run preview  # serve the built dist/
+pnpm install
+pnpm -r test          # all packages
+pnpm -r typecheck
+pnpm -r lint
+pnpm --filter web dev # PWA dev server
 ```
 
-## Deploy A — Cloudflare Worker (recommended, matches the dashboard "Create a Worker" flow)
-
-Config lives in `wrangler.jsonc`; the Worker entry is `worker/index.js`, which
-serves the built `dist/` via the `ASSETS` binding and handles
-`POST /api/waitlist`.
-
-Git-connected build settings (Workers Builds wizard):
-
-- **Project name:** `waterlog` (keep it matching `name` in `wrangler.jsonc`)
-- **Build command:** `npm run build`
-- **Deploy command:** `npx wrangler deploy`
-
-Or deploy from your machine:
+API worker locally (serves `GET /api/health`):
 
 ```bash
-npm run build
-npx wrangler deploy      # same as: npm run deploy
+cd workers/api
+pnpm dev              # wrangler dev
 ```
 
-Run it locally with the Worker runtime:
+## Database (local D1)
 
 ```bash
-npm run build
-npx wrangler dev         # serves dist/ + /api/waitlist
+cd workers/api
+pnpm migrate          # wrangler d1 migrations apply DB --local
+pnpm seed             # dev-only seed; NEVER run against production
 ```
 
-### Waitlist storage (KV) for the Worker
+Migrations are append-only and numbered. The seed is not a migration.
 
-The endpoint writes to a KV namespace bound as `WAITLIST`. Until it's bound,
-signups return HTTP 500 ("storage is not configured") and the rest of the site
-works.
+## Deploy
 
-```bash
-npx wrangler kv namespace create WAITLIST   # copy the printed id
-```
-
-Then uncomment the `kv_namespaces` block in `wrangler.jsonc`, paste the id, and
-redeploy (or push, if git-connected).
-
-## Deploy B — Cloudflare Pages
-
-- **Build command:** `npm run build`
-- **Build output directory:** `dist`
-- **Functions:** `functions/api/waitlist.js` is picked up automatically and
-  serves `POST /api/waitlist`.
-
-### Waitlist storage (KV)
-
-The signup endpoint writes to a KV namespace bound as `WAITLIST`.
-
-Dashboard → Workers & Pages → this project → Settings → Functions →
-**KV namespace bindings** → add:
-
-- Variable name: `WAITLIST`
-- KV namespace: create one (e.g. `waterlog-waitlist`)
-
-Add the binding for both Production and Preview.
-
-To run the Function locally with Wrangler:
-
-```bash
-npx wrangler kv namespace create WAITLIST
-npx wrangler kv namespace create WAITLIST --preview
-npm run build
-npx wrangler pages dev dist
-```
-
-See the comment header in `functions/api/waitlist.js` for the matching
-`wrangler.toml` snippet.
+- **Web (Cloudflare Pages)**: connected via the Pages GitHub integration.
+  Build command `pnpm --filter web build`, output directory `apps/web/dist`.
+  Pages posts a preview URL on every PR.
+- **Workers**: deployed by CI (`.github/workflows/ci.yml`) via
+  `wrangler deploy` on merge to `main` only. Requires the
+  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets.

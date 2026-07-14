@@ -1,0 +1,13 @@
+# WaterLog cron worker — nightly pattern recompute (stub in Epic 0).
+name = "waterlog-cron"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[triggers]
+# UTC — nightly recompute; exact hour revisited later.
+crons = ["0 8 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "waterlog-db"
+database_id = "00000000-0000-0000-0000-000000000000"

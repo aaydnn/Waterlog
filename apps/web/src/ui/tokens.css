@@ -1,0 +1,37 @@
+/* WaterLog brand tokens — carried over from the waitlist site so the app
+   and the marketing page stay on one palette. */
+:root {
+  --teal-deep: #067f84; /* darkest band — primary brand teal */
+  --teal-mid: #1faea8;
+  --sea-green: #61c69a;
+  --sky-teal: #66c8ce;
+  --aqua-pale: #80d6cf;
+
+  /* Grounding neutrals derived from the deep teal, NOT pure black/gray: */
+  --ink: #041b1d; /* page background — near-black with teal blood in it */
+  --ink-2: #0a2b2e; /* card/panel background */
+  --bone: #edeae2; /* body text — slightly dirty off-white, never #FFF */
+
+  --hairline: rgba(237, 234, 226, 0.16);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--ink);
+  color: var(--bone);
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+}

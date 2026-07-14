@@ -1,0 +1,28 @@
+# WaterLog API worker (Hono).
+name = "waterlog-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "waterlog-db"
+# Placeholder until the production D1 database is provisioned:
+#   wrangler d1 create waterlog-db   → paste the printed id here
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "../../migrations"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "waterlog-photos"
+
+[[queues.producers]]
+binding = "ENRICH_QUEUE"
+queue = "waterlog-enrich"
+
+[vars]
+# Where the web app lives; used for auth redirects and magic-link URLs.
+APP_URL = "http://localhost:5173"
+# Auth secrets are placeholders here. In real environments set them with
+#   wrangler secret put GOOGLE_CLIENT_SECRET
+# etc. — never commit real values.
+GOOGLE_CLIENT_ID = ""

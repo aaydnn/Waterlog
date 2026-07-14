@@ -1,0 +1,14 @@
+# WaterLog enrichment worker — consumes the enrich queue.
+name = "waterlog-enrich"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[[queues.consumers]]
+queue = "waterlog-enrich"
+max_batch_size = 10
+max_retries = 3
+
+[[d1_databases]]
+binding = "DB"
+database_name = "waterlog-db"
+database_id = "00000000-0000-0000-0000-000000000000"

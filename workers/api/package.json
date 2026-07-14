@@ -1,0 +1,25 @@
+{
+  "name": "@waterlog/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "migrate": "wrangler d1 migrations apply DB --local",
+    "seed": "wrangler d1 execute DB --local --file=../../migrations/seed/seed.sql"
+  },
+  "dependencies": {
+    "@waterlog/schema": "workspace:*",
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260708.1",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0",
+    "wrangler": "^4.20.0"
+  }
+}
