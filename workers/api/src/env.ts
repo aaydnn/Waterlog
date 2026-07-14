@@ -1,3 +1,5 @@
+import type { User } from '@waterlog/schema'
+
 /** Bindings + vars declared in wrangler.toml, as a Hono env. */
 export interface ApiBindings {
   DB: D1Database
@@ -9,4 +11,10 @@ export interface ApiBindings {
   GOOGLE_CLIENT_SECRET?: string
 }
 
-export type AppEnv = { Bindings: ApiBindings }
+export type AppEnv = {
+  Bindings: ApiBindings
+  Variables: {
+    /** Set by the requireAuth middleware. */
+    user: User
+  }
+}
