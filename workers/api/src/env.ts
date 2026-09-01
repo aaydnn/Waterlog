@@ -9,6 +9,8 @@ export interface ApiBindings {
   GOOGLE_CLIENT_ID: string
   /** Set via `wrangler secret put`; absent in local dev unless configured. */
   GOOGLE_CLIENT_SECRET?: string
+  /** Set via `wrangler secret put`; absent locally falls back to ConsoleMailer. */
+  RESEND_API_KEY?: string
 }
 
 export type AppEnv = {
