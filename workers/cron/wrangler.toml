@@ -10,4 +10,4 @@ crons = ["0 8 * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "waterlog-db"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "8b96aa01-ac65-4e49-a0d0-abc785d60c43"
