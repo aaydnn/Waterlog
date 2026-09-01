@@ -23,4 +23,4 @@ APP_URL = "http://localhost:5173"
 # Auth secrets are placeholders here. In real environments set them with
 #   wrangler secret put GOOGLE_CLIENT_SECRET
 # etc. — never commit real values.
-GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_ID = "893952815211-fa5p6mg1afqdee979rgdka5drm2bqgas.apps.googleusercontent.com"
