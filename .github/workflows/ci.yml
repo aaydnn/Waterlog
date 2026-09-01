@@ -23,9 +23,7 @@ jobs:
       - run: pnpm --filter web build
 
   # Workers (api/enrich/cron) and the waitlist Worker deploy on merge to main
-  # only. PR runs never deploy in Epic 0. (apps/web deploys separately via
-  # the Cloudflare Pages GitHub integration, which also provides PR preview
-  # URLs.)
+  # only. PR runs never deploy them in Epic 0.
   deploy-workers:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: ci
@@ -46,3 +44,23 @@ jobs:
       - run: pnpm --filter @waterlog/cron exec wrangler deploy
       - run: pnpm --filter waterlog-waitlist build
       - run: pnpm --filter waterlog-waitlist exec wrangler deploy
+
+  # apps/web deploys via wrangler (Cloudflare Pages), not the Pages GitHub
+  # integration. Runs on both PRs (preview URL, one per branch) and pushes
+  # to main (production, since main is the project's production branch).
+  deploy-web:
+    needs: ci
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web build
+      - run: pnpm --filter web exec wrangler pages deploy dist --project-name=waterlog-web --branch=${{ github.head_ref || github.ref_name }}

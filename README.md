@@ -43,9 +43,10 @@ Migrations are append-only and numbered. The seed is not a migration.
 
 ## Deploy
 
-- **Web (Cloudflare Pages)**: connected via the Pages GitHub integration.
-  Build command `pnpm --filter web build`, output directory `apps/web/dist`.
-  Pages posts a preview URL on every PR.
-- **Workers**: deployed by CI (`.github/workflows/ci.yml`) via
-  `wrangler deploy` on merge to `main` only. Requires the
-  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets.
+Everything deploys from CI (`.github/workflows/ci.yml`) via `wrangler`.
+Requires the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets.
+
+- **Web (Cloudflare Pages)**: `wrangler pages deploy` runs on every PR (preview
+  URL, one per branch) and on push to `main` (production).
+- **Workers (api/enrich/cron) and the waitlist worker**: `wrangler deploy` on
+  merge to `main` only — PR runs never deploy them.
