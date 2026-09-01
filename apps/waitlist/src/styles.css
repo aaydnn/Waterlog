@@ -1,54 +1,25 @@
-/* Fonts: marker-on-plywood display + pen-handwriting body.
-   Oswald survives only for the wordmark. Self-hosted from /fonts so the
-   page has no runtime dependency on Google. */
-@font-face {
-  font-family: 'Permanent Marker';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/permanent-marker-400.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Kalam';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/kalam-400.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Kalam';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/kalam-700.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Oswald';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/oswald-700.woff2') format('woff2');
-}
+/* Inter is loaded via Google Fonts in index.html — the only type family,
+   used for both the wordmark (as an SVG lockup) and all UI text. */
 
 :root {
-  --teal-deep: #067f84; /* darkest band — primary brand teal */
-  --teal-mid: #1faea8;
-  --sea-green: #61c69a;
-  --sky-teal: #66c8ce;
-  --aqua-pale: #80d6cf;
+  --navy: #0b1d2a; /* ground */
+  --navy-1: #122a3b; /* elevated panel (cards) */
+  --navy-2: #1b3a50; /* more elevated */
+  --chartreuse: #dfff00; /* accent — navy-only, never on bone */
+  --bone: #f2efe6; /* type / hull */
 
-  /* Grounding neutrals derived from the deep teal, NOT pure black/gray: */
-  --ink: #041b1d; /* page background — near-black with teal blood in it */
-  --ink-2: #0a2b2e; /* card/panel background */
-  --bone: #edeae2; /* body text — slightly dirty off-white, never #FFF */
+  --bone-72: rgba(242, 239, 230, 0.72);
+  --bone-48: rgba(242, 239, 230, 0.48);
+  --bone-32: rgba(242, 239, 230, 0.32);
+  --hairline: rgba(242, 239, 230, 0.14);
 
-  --hairline: rgba(237, 234, 226, 0.16);
-  --display: 'Permanent Marker', 'Comic Sans MS', cursive;
-  --body: 'Kalam', 'Comic Sans MS', cursive;
-  --wordmark: 'Oswald', 'Arial Narrow', sans-serif;
+  --shadow-elevated: 0 12px 28px rgba(0, 0, 0, 0.35);
+
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
 }
 
 *,
@@ -63,63 +34,89 @@ html {
 
 body {
   margin: 0;
-  background-color: var(--ink);
+  background-color: var(--navy);
   color: var(--bone);
-  font-family: var(--body);
-  font-size: 18px;
-  line-height: 1.55;
+  font-family: var(--font);
+  font-weight: 400;
+  font-size: 17px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   min-height: 100vh;
 }
 
-/* --- fixed illustration + texture layers ---------------------------------- */
+/* --- lake background --------------------------------------------------------- */
+/* Fixed full-viewport WebGL water + dock scene, pinned behind all content.
+   Page copy floats above it in .bubble cards so it stays readable against
+   a moving image instead of a flat ground. */
 
-.contours {
+.lake-bg {
   position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  z-index: 0;
+  background: var(--navy);
+}
+
+.lake-bg__water {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lake-bg__dock {
+  position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 0;
-  opacity: 0.14;
   pointer-events: none;
 }
 
-.grain {
+.lake-bg__vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 120% at 50% 35%, rgba(0, 0, 0, 0) 55%, rgba(4, 10, 12, 0.55) 100%);
+}
+
+/* --- rod cursor -------------------------------------------------------------- */
+/* Fixed to the viewport (never scrolls with the page) and pinned to the
+   bottom-left corner. Pointer-events are off on the whole overlay — the
+   hook still tracks the cursor via a window mousemove listener in JS. */
+
+.rod-cursor {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-  opacity: 0.05;
+  width: 100vw;
+  height: 100vh;
+  z-index: 60;
   pointer-events: none;
-  mix-blend-mode: overlay;
+  overflow: visible;
 }
 
-/* somebody set a mug down on the depth map */
-.coffee-ring {
-  position: fixed;
-  top: 52%;
-  right: -70px;
-  width: 300px;
-  height: 300px;
-  z-index: 0;
-  opacity: 0.13;
-  transform: rotate(-14deg);
-  pointer-events: none;
+/* --- bubble: the shared "floating over water" card treatment ---------------- */
+
+.bubble {
+  background: rgba(11, 29, 42, 0.76);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-elevated);
 }
 
-/* --- page shell ----------------------------------------------------------- */
+/* --- page shell ------------------------------------------------------------ */
 
 .page {
   position: relative;
-  z-index: 2;
-  max-width: 680px;
+  z-index: 1;
+  max-width: 640px;
   margin: 0 auto;
-  padding: 28px 24px 48px;
+  padding: 32px 24px 56px;
 }
 
-/* --- top bar / wordmark --------------------------------------------------- */
+/* --- top bar / wordmark ----------------------------------------------------- */
 
 .topbar {
   display: flex;
@@ -130,90 +127,67 @@ body {
   margin-bottom: clamp(48px, 9vw, 84px);
 }
 
+.wordmark-bubble {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 10px 20px;
+}
+
 .wordmark {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
-  color: var(--bone);
-  /* the one thing on the page that isn't handwritten — it's the brand */
-  font-family: var(--wordmark);
-  font-weight: 700;
-  font-size: 26px;
-  letter-spacing: 0.02em;
-  line-height: 1;
 }
 
-.wordmark__bobber {
-  display: inline-flex;
-  width: 0.72em;
-  height: 0.72em;
-  margin: 0 0.03em;
-  /* cocked a few degrees, like it's riding a chop */
-  transform: translateY(0.08em) rotate(9deg);
+.wordmark-logo {
+  height: clamp(28px, 6vw, 36px);
+  width: auto;
+  display: block;
 }
 
-.wordmark__bobber svg {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.stamp {
-  font-family: var(--display);
-  font-weight: 400;
+.tag {
+  display: inline-block;
+  font-family: var(--font);
+  font-weight: 500;
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--sky-teal);
-  opacity: 0.72;
-  border: 1px solid var(--hairline);
-  padding: 5px 9px;
-  border-radius: 2px;
-  /* stamped on crooked */
-  transform: rotate(-1.6deg);
+  color: var(--bone);
+  border-radius: 999px;
+  padding: 9px 14px;
 }
 
-/* --- hero ----------------------------------------------------------------- */
+/* --- hero -------------------------------------------------------------------- */
 
 .hero {
   margin-bottom: clamp(56px, 11vw, 96px);
 }
 
 .hero__headline {
-  font-family: var(--display);
-  /* Permanent Marker ships one weight — no faux bold */
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.005em;
+  font-family: var(--font);
+  font-weight: 800;
+  letter-spacing: -0.02em;
   line-height: 1.08;
-  /* marker is wider than the old condensed face — sized down to fit */
-  font-size: clamp(1.9rem, 8.6vw, 3.6rem);
-  margin: 0 0 24px;
+  font-size: clamp(2.1rem, 8vw, 3.4rem);
+  margin: 0 0 20px;
   color: var(--bone);
-  /* off-register screen print: the teal pass missed by a few px */
-  text-shadow: 3px 3px 0 rgba(6, 127, 132, 0.55);
+  border-radius: var(--radius-lg);
+  padding: 28px 30px;
+  max-width: fit-content;
 }
 
-/* each line stenciled separately — neither is quite level */
 .hero__line {
   display: block;
-  max-width: max-content;
-}
-
-.hero__line--1 {
-  transform: rotate(-1.1deg);
-}
-
-.hero__line--2 {
-  transform: rotate(0.6deg) translateX(0.18em);
 }
 
 .hero__subhead {
-  font-size: clamp(1.02rem, 2.6vw, 1.22rem);
+  font-size: clamp(1.02rem, 2.6vw, 1.2rem);
+  line-height: 1.5;
   max-width: 34ch;
-  color: var(--bone);
-  opacity: 0.9;
+  color: var(--bone-72);
   margin: 0 0 32px;
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
 }
 
 .hero__form {
@@ -221,41 +195,25 @@ body {
 }
 
 .hero__teaser {
-  font-family: var(--display);
-  font-weight: 400;
-  font-size: clamp(1rem, 2.4vw, 1.15rem);
-  letter-spacing: 0.01em;
-  color: var(--aqua-pale);
+  font-weight: 500;
+  font-size: clamp(0.98rem, 2.2vw, 1.08rem);
+  color: var(--bone-72);
   margin: 0;
-  padding-top: 22px;
-  border-top: 1px solid var(--hairline);
   max-width: 40ch;
-  transform: rotate(-0.35deg);
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
 }
 
-/* --- signup form ---------------------------------------------------------- */
+/* --- signup form --------------------------------------------------------------- */
 
 .signup {
-  position: relative;
-  background: var(--ink-2);
+  background: rgba(11, 29, 42, 0.86);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--hairline);
-  border-radius: 3px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
   padding: 22px 20px 24px;
-  /* hand-ruled edge: a hairline shadow, not a soft glow */
-  box-shadow: inset 0 0 0 1px rgba(6, 127, 132, 0.14);
-  /* sits a hair off level, like it was screwed to the dock post */
-  transform: rotate(-0.4deg);
-}
-
-/* second frame, misaligned — a print that didn't line up */
-.signup::after {
-  content: '';
-  position: absolute;
-  inset: -6px -4px -4px -7px;
-  border: 1px solid rgba(31, 174, 168, 0.22);
-  border-radius: 3px;
-  transform: rotate(0.5deg);
-  pointer-events: none;
 }
 
 .signup__field {
@@ -264,54 +222,50 @@ body {
 
 .signup__label {
   display: block;
-  font-family: var(--display);
-  font-weight: 400;
-  font-size: 13px;
+  font-weight: 500;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: var(--sky-teal);
-  margin-bottom: 7px;
+  color: var(--bone-72);
+  margin-bottom: 8px;
 }
 
 .signup__hint {
   display: inline;
-  font-family: var(--body);
   font-weight: 400;
-  font-size: 11px;
-  letter-spacing: 0.02em;
+  font-size: 12px;
+  letter-spacing: 0;
   text-transform: none;
-  color: var(--bone);
-  opacity: 0.55;
+  color: var(--bone-48);
   margin-left: 6px;
 }
 
 .signup input[type='email'],
 .signup input[type='tel'] {
   width: 100%;
-  font-family: var(--body);
+  font-family: var(--font);
   font-size: 16px;
   color: var(--bone);
-  background: var(--ink);
+  background: var(--navy);
   border: 1px solid var(--hairline);
-  border-radius: 2px;
+  border-radius: var(--radius-md);
   padding: 12px 13px;
-  transition: border-color 0.12s ease;
+  transition: border-color 0.15s ease;
 }
 
 .signup input::placeholder {
-  color: var(--bone);
-  opacity: 0.34;
+  color: var(--bone-32);
 }
 
 .signup input:hover {
-  border-color: rgba(237, 234, 226, 0.3);
+  border-color: var(--bone-48);
 }
 
 .signup input:focus,
 .signup input:focus-visible {
-  outline: 2px solid var(--sea-green);
-  outline-offset: 2px;
-  border-color: var(--sea-green);
+  outline: none;
+  border-color: var(--chartreuse);
+  box-shadow: 0 0 0 2px rgba(223, 255, 0, 0.25);
 }
 
 .signup input:disabled {
@@ -320,32 +274,37 @@ body {
 }
 
 .signup__error {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   margin: 0 0 16px;
   font-size: 14px;
-  color: var(--aqua-pale);
-  border-left: 2px solid var(--sea-green);
-  padding-left: 11px;
+  color: var(--bone-72);
+}
+
+.signup__error::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--chartreuse);
 }
 
 .signup__submit {
   width: 100%;
-  font-family: var(--display);
-  font-weight: 400;
-  font-size: 17px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ink);
-  background: var(--sea-green);
-  border: 1px solid var(--sea-green);
-  border-radius: 2px;
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--navy);
+  background: var(--chartreuse);
+  border: 1px solid var(--chartreuse);
+  border-radius: var(--radius-md);
   padding: 14px 16px;
   cursor: pointer;
-  transition: background-color 0.12s ease, transform 0.06s ease;
-}
-
-.signup__submit:hover {
-  background: var(--aqua-pale);
-  border-color: var(--aqua-pale);
+  transition: transform 0.12s ease;
 }
 
 .signup__submit:active {
@@ -353,7 +312,7 @@ body {
 }
 
 .signup__submit:focus-visible {
-  outline: 2px solid var(--sea-green);
+  outline: 2px solid var(--chartreuse);
   outline-offset: 3px;
 }
 
@@ -364,23 +323,20 @@ body {
 
 /* success state */
 .signup--done {
-  box-shadow: inset 0 0 0 1px rgba(97, 198, 154, 0.35);
+  text-align: left;
 }
 
 .signup__done-line {
-  font-family: var(--display);
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-size: 1.6rem;
-  color: var(--sea-green);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-size: 1.5rem;
+  color: var(--bone);
   margin: 0 0 8px;
 }
 
 .signup__done-sub {
   margin: 0;
-  color: var(--bone);
-  opacity: 0.9;
+  color: var(--bone-72);
   max-width: 36ch;
 }
 
@@ -393,144 +349,76 @@ body {
   overflow: hidden;
 }
 
-/* --- teaser lines --------------------------------------------------------- */
+/* --- teaser lines --------------------------------------------------------------- */
 
 .teasers {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   margin-bottom: clamp(56px, 11vw, 96px);
 }
 
-.rule {
-  border: 0;
-  border-top: 1px solid var(--hairline);
-  margin: 0;
-}
-
-/* ruled by hand — none of them quite straight, none the same length */
-.teasers .rule:nth-of-type(1) {
-  width: 96%;
-  transform: rotate(0.3deg);
-}
-
-.teasers .rule:nth-of-type(2) {
-  width: 88%;
-  margin-left: auto;
-  transform: rotate(-0.25deg);
-}
-
-.teasers .rule:nth-of-type(3) {
-  width: 93%;
-  transform: rotate(0.2deg);
-}
-
-.teasers .rule:nth-of-type(4) {
-  width: 84%;
-  margin-left: 4%;
-  transform: rotate(-0.35deg);
-}
-
 .teaser {
-  padding: 20px 2px;
+  border-radius: var(--radius-lg);
+  padding: 22px 22px 24px;
 }
 
-/* stenciled crate tag on each entry */
 .teaser__tag {
   display: inline-block;
-  font-family: var(--display);
-  font-weight: 400;
+  font-weight: 500;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--sky-teal);
-  opacity: 0.62;
+  color: var(--bone-72);
   border: 1px solid var(--hairline);
-  padding: 3px 8px 3px 10px;
-  margin-bottom: 10px;
-  transform: rotate(-1.4deg);
-}
-
-.teaser:nth-of-type(2) .teaser__tag {
-  transform: rotate(1deg);
-}
-
-.teaser:nth-of-type(3) .teaser__tag {
-  transform: rotate(-0.7deg) translateX(3px);
-}
-
-/* entries drift a little, like they were typed on different days */
-.teaser:nth-of-type(2) {
-  padding-left: 14px;
-}
-
-.teaser:nth-of-type(3) {
-  padding-left: 5px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-bottom: 12px;
 }
 
 .teaser-line {
-  font-size: clamp(1.02rem, 2.6vw, 1.18rem);
-  color: var(--bone);
-  opacity: 0.92;
+  font-size: clamp(1.02rem, 2.6vw, 1.15rem);
+  color: var(--bone-72);
   margin: 0;
   max-width: 46ch;
 }
 
-/* --- privacy block -------------------------------------------------------- */
+/* --- privacy block ---------------------------------------------------------------- */
 
 .privacy {
-  position: relative;
-  border: 1px solid var(--hairline);
-  border-radius: 3px;
-  background: var(--ink-2);
+  border-radius: var(--radius-lg);
   padding: 26px 24px;
   margin-bottom: clamp(56px, 11vw, 88px);
-  box-shadow: inset 0 0 0 1px rgba(6, 127, 132, 0.12);
-  transform: rotate(0.55deg);
 }
 
-.privacy::after {
-  content: '';
-  position: absolute;
-  inset: -5px -6px -7px -4px;
-  border: 1px solid rgba(6, 127, 132, 0.3);
-  border-radius: 3px;
-  transform: rotate(-0.45deg);
-  pointer-events: none;
-}
-
-/* rubber-stamped, pressed hard on one corner */
 .privacy__stamp-label {
   display: inline-block;
-  font-family: var(--display);
-  font-weight: 400;
+  font-weight: 700;
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--sea-green);
-  border: 2px solid var(--sea-green);
-  border-radius: 2px;
-  padding: 5px 10px 5px 13px;
+  color: var(--chartreuse);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 6px 12px;
   margin: 0 0 16px;
-  transform: rotate(-2.4deg);
-  /* ink didn't take evenly */
-  border-right-color: rgba(97, 198, 154, 0.45);
-  border-bottom-color: rgba(97, 198, 154, 0.65);
 }
 
 .privacy__copy {
-  font-family: var(--display);
-  font-weight: 400;
-  font-size: clamp(1.1rem, 3.2vw, 1.45rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-size: clamp(1.15rem, 3vw, 1.4rem);
   line-height: 1.45;
-  letter-spacing: 0.005em;
   color: var(--bone);
   margin: 0;
-  max-width: 30ch;
+  max-width: 32ch;
 }
 
-/* --- footer --------------------------------------------------------------- */
+/* --- footer ------------------------------------------------------------------------ */
 
 .footer {
-  border-top: 1px solid var(--hairline);
-  padding-top: 22px;
+  border-radius: var(--radius-lg);
+  padding: 18px 22px 20px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -539,35 +427,30 @@ body {
 .footer__credit {
   margin: 0;
   font-size: 14px;
-  color: var(--bone);
-  opacity: 0.7;
+  color: var(--bone-72);
 }
 
 .footer__copy {
   margin: 0;
-  font-family: var(--display);
-  font-weight: 400;
+  font-weight: 500;
   font-size: 12px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--sky-teal);
-  opacity: 0.6;
-  transform: rotate(-0.5deg);
-  max-width: max-content;
+  color: var(--bone-48);
 }
 
-/* --- small screens -------------------------------------------------------- */
+/* --- small screens ------------------------------------------------------------------ */
 
 @media (max-width: 400px) {
   .page {
-    padding: 22px 18px 40px;
+    padding: 24px 18px 44px;
   }
-  .stamp {
+  .tag {
     display: none;
   }
 }
 
-/* --- respect reduced motion ----------------------------------------------- */
+/* --- respect reduced motion ----------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   *,
