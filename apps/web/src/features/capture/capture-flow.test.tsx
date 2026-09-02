@@ -118,4 +118,42 @@ describe('CaptureFlow (F1: ten-second capture)', () => {
     const draft = (engine.enqueueCatch as ReturnType<typeof vi.fn>).mock.calls[0]![0] as CatchDraft
     expect(draft.species).toBe('walleye')
   })
+
+  it('a species with existing history no longer hides every other species behind search', async () => {
+    // Regression test: previously, once "recents" had even one entry, the sheet showed ONLY
+    // the recents shelf — the rest of the list was unreachable without typing a search query.
+    mockFetch([])
+    const db = freshDb()
+    await db.catches.put({
+      local_id: 'prior1',
+      client_id: 'c1',
+      id: 'srv1',
+      trip_id: null,
+      lure_id: null,
+      species: 'largemouth_bass',
+      caught_at: Date.now(),
+      lat: null,
+      lng: null,
+      photo_key: null,
+      length_mm: null,
+      weight_g: null,
+      depth_m: null,
+      released: null,
+      notes: null,
+      synced_at: Date.now(),
+    })
+    const engine = fakeEngine()
+    const user = userEvent.setup()
+    render(<CaptureFlow engine={engine} db={db} resizeImage={async () => new Blob(['resized'])} />)
+
+    await user.upload(screen.getByLabelText('Take or choose a catch photo'), fakePhoto)
+    await screen.findByRole('button', { name: 'Largemouth Bass' }) // the recent, shown first
+    // Bluegill has no history yet, but must still be reachable without typing anything.
+    await user.click(screen.getByRole('button', { name: 'Bluegill' }))
+    await user.click(await screen.findByRole('button', { name: 'No lure' }))
+
+    await waitFor(() => expect(engine.enqueueCatch).toHaveBeenCalledTimes(1))
+    const draft = (engine.enqueueCatch as ReturnType<typeof vi.fn>).mock.calls[0]![0] as CatchDraft
+    expect(draft.species).toBe('bluegill')
+  })
 })

@@ -107,6 +107,19 @@
   box-shadow: 0 0 0 2px rgba(223, 255, 0, 0.25);
 }
 
+.sheet__section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-48);
+  margin: 14px 2px 8px;
+}
+
+.sheet__section-label:first-child {
+  margin-top: 0;
+}
+
 .sheet__list {
   list-style: none;
   margin: 0;

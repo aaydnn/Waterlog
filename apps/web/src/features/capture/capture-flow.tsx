@@ -149,20 +149,17 @@ export function CaptureFlow({
     }
   }
 
-  // Before this device has any catch history, "recents" is empty — fall back to the full list
-  // rather than showing nothing (first-ever capture is exactly when this matters most).
-  const recentSpeciesList = SPECIES.filter((s) => recentSpeciesSlugs.includes(s.slug))
-  const visibleSpecies = speciesQuery
+  // Recents are a shortcut, never a ceiling — the rest of the list stays scrollable below them
+  // so there's always a way to reach any species/lure without typing a search query.
+  const speciesSearchResults = speciesQuery
     ? SPECIES.filter((s) => s.label.toLowerCase().includes(speciesQuery.toLowerCase()))
-    : recentSpeciesList.length > 0
-      ? recentSpeciesList
-      : SPECIES
+    : null
+  const recentSpeciesList = SPECIES.filter((s) => recentSpeciesSlugs.includes(s.slug))
+  const restSpeciesList = SPECIES.filter((s) => !recentSpeciesSlugs.includes(s.slug))
 
-  const visibleLures = lureQuery
-    ? lures.filter((l) => l.name.toLowerCase().includes(lureQuery.toLowerCase()))
-    : recentLures.length > 0
-      ? recentLures
-      : lures
+  const lureSearchResults = lureQuery ? lures.filter((l) => l.name.toLowerCase().includes(lureQuery.toLowerCase())) : null
+  const recentLureIdSet = new Set(recentLures.map((l) => l.id))
+  const restLuresList = lures.filter((l) => !recentLureIdSet.has(l.id))
 
   const canQuickAdd =
     lureQuery.trim().length > 0 && !lures.some((l) => l.name.toLowerCase() === lureQuery.trim().toLowerCase())
@@ -202,15 +199,44 @@ export function CaptureFlow({
               value={speciesQuery}
               onChange={(e) => setSpeciesQuery(e.target.value)}
             />
-            <ul className="sheet__list">
-              {visibleSpecies.map((s) => (
-                <li key={s.slug}>
-                  <button type="button" className="sheet__item" onClick={() => void onSpeciesChosen(s.slug)}>
-                    {s.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            {speciesSearchResults ? (
+              <ul className="sheet__list">
+                {speciesSearchResults.map((s) => (
+                  <li key={s.slug}>
+                    <button type="button" className="sheet__item" onClick={() => void onSpeciesChosen(s.slug)}>
+                      {s.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <>
+                {recentSpeciesList.length > 0 && (
+                  <>
+                    <p className="sheet__section-label">Recent</p>
+                    <ul className="sheet__list">
+                      {recentSpeciesList.map((s) => (
+                        <li key={s.slug}>
+                          <button type="button" className="sheet__item" onClick={() => void onSpeciesChosen(s.slug)}>
+                            {s.label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="sheet__section-label">All species</p>
+                  </>
+                )}
+                <ul className="sheet__list">
+                  {restSpeciesList.map((s) => (
+                    <li key={s.slug}>
+                      <button type="button" className="sheet__item" onClick={() => void onSpeciesChosen(s.slug)}>
+                        {s.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         </>
       )}
@@ -231,15 +257,44 @@ export function CaptureFlow({
               value={lureQuery}
               onChange={(e) => setLureQuery(e.target.value)}
             />
-            <ul className="sheet__list">
-              {visibleLures.map((l) => (
-                <li key={l.id}>
-                  <button type="button" className="sheet__item" onClick={() => void saveCatch(l.id)}>
-                    {l.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            {lureSearchResults ? (
+              <ul className="sheet__list">
+                {lureSearchResults.map((l) => (
+                  <li key={l.id}>
+                    <button type="button" className="sheet__item" onClick={() => void saveCatch(l.id)}>
+                      {l.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <>
+                {recentLures.length > 0 && (
+                  <>
+                    <p className="sheet__section-label">Recent</p>
+                    <ul className="sheet__list">
+                      {recentLures.map((l) => (
+                        <li key={l.id}>
+                          <button type="button" className="sheet__item" onClick={() => void saveCatch(l.id)}>
+                            {l.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {restLuresList.length > 0 && <p className="sheet__section-label">All lures</p>}
+                  </>
+                )}
+                <ul className="sheet__list">
+                  {restLuresList.map((l) => (
+                    <li key={l.id}>
+                      <button type="button" className="sheet__item" onClick={() => void saveCatch(l.id)}>
+                        {l.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
             {canQuickAdd && (
               <button type="button" className="sheet__quick-add" onClick={() => void onQuickAddLure(lureQuery.trim())}>
                 + New lure &ldquo;{lureQuery.trim()}&rdquo;
