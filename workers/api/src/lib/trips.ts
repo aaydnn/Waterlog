@@ -88,3 +88,19 @@ export async function getTripById(db: D1Database, userId: string, id: string): P
     .bind(id, userId)
     .first<Trip>()
 }
+
+/** Idempotent by construction (ADR-0003): only ends a trip that's still open, so replaying this
+ * call never overwrites a real end time with a stale one. Returns null when the trip doesn't
+ * exist or isn't owned by this user; returns the (already-ended) trip unchanged on replay. */
+export async function endTrip(
+  db: D1Database,
+  userId: string,
+  id: string,
+  endedAt: number,
+): Promise<Trip | null> {
+  await db
+    .prepare('UPDATE trips SET ended_at = ?, updated_at = ? WHERE id = ? AND user_id = ? AND ended_at IS NULL')
+    .bind(endedAt, Date.now(), id, userId)
+    .run()
+  return getTripById(db, userId, id)
+}

@@ -1,0 +1,18 @@
+import { Hono } from 'hono'
+import { z } from 'zod'
+import type { AppEnv } from '../env'
+import { endTrip } from '../lib/trips'
+import { requireAuth } from '../middleware/require-auth'
+
+export const tripRoutes = new Hono<AppEnv>()
+
+const endTripInput = z.object({ ended_at: z.number().int() })
+
+tripRoutes.patch('/:id/end', requireAuth, async (c) => {
+  const parsed = endTripInput.safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) return c.json({ error: 'invalid body' }, 400)
+
+  const trip = await endTrip(c.env.DB, c.get('user').id, c.req.param('id'), parsed.data.ended_at)
+  if (!trip) return c.json({ error: 'trip not found' }, 404)
+  return c.json({ trip })
+})
