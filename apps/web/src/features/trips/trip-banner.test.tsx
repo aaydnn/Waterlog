@@ -44,6 +44,9 @@ describe('TripBanner', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Start trip' }))
     // The banner now shows "End trip", not "Start trip" — a stray second tap has nothing to hit.
+    // onStart() is fire-and-forget from the click handler, so wait for the async state update
+    // (setActive after the Dexie write) to actually land before asserting on it.
+    await screen.findByRole('button', { name: 'End trip' })
     expect(screen.queryByRole('button', { name: 'Start trip' })).not.toBeInTheDocument()
     expect(await db.trips.count()).toBe(1)
   })
