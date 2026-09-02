@@ -48,7 +48,7 @@ export class WaterlogDb extends Dexie {
     super(name)
     this.version(1).stores({
       trips: 'local_id, client_id, id, synced_at',
-      catches: 'local_id, client_id, id, trip_id, synced_at',
+      catches: 'local_id, client_id, id, trip_id, synced_at, caught_at',
       lures: 'id, name',
       pendingTripEnds: 'trip_id',
     })
