@@ -80,6 +80,7 @@ export const tripSchema = z.object({
   auto_created: sqliteBool,
   planned: sqliteBool,
   notes: z.string().nullable(),
+  client_id: z.string().nullable(), // client ULID: offline dedupe, idempotent sync
 })
 export type Trip = z.infer<typeof tripSchema>
 

@@ -72,6 +72,7 @@ describe('schema round-trips against seed-shaped rows', () => {
       auto_created: 0,
       planned: 1,
       notes: 'July 4th, bluebird sky, boat traffic everywhere. Skunked.',
+      client_id: null,
       created_at: 1783162800000,
       updated_at: 1783170000000,
       deleted_at: null,
