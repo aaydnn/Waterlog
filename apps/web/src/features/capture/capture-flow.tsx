@@ -8,6 +8,7 @@ import { createLure as createLureRemote, syncLures } from '../../lib/lures'
 import type { CatchDraft, SyncEngine } from '../../lib/sync/sync-engine'
 import { WebSyncEngine } from '../../lib/sync/sync-engine'
 import { getActiveTrip, tripReferenceFor } from '../trips/trip-lifecycle'
+import './capture-flow.css'
 import { recentLureIds, recentSpecies } from './recents'
 import { SPECIES } from './species'
 
@@ -61,6 +62,21 @@ export function CaptureFlow({
   const [recentLures, setRecentLures] = useState<Lure[]>([])
   const [lureQuery, setLureQuery] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+
+  // Photography-forward (packet §09): show the just-taken photo while tagging it, not just
+  // after. Object URLs are revoked as soon as they're replaced or the flow resets.
+  useEffect(() => {
+    // jsdom (component tests) doesn't implement createObjectURL — no preview there, which is
+    // fine, the tests don't assert on it.
+    if (!photoBlob || typeof URL.createObjectURL !== 'function') {
+      setPhotoUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(photoBlob)
+    setPhotoUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [photoBlob])
 
   useEffect(() => {
     if (step !== 'done') return
@@ -174,48 +190,71 @@ export function CaptureFlow({
       )}
 
       {step === 'species' && (
-        <div role="dialog" aria-label="Pick a species">
-          <input
-            aria-label="Search species"
-            value={speciesQuery}
-            onChange={(e) => setSpeciesQuery(e.target.value)}
-          />
-          <ul>
-            {visibleSpecies.map((s) => (
-              <li key={s.slug}>
-                <button type="button" onClick={() => void onSpeciesChosen(s.slug)}>
-                  {s.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <>
+          <div className="sheet-scrim" />
+          <div role="dialog" aria-label="Pick a species" className="sheet">
+            <h2 className="sheet__title">What did you catch?</h2>
+            {photoUrl && <img src={photoUrl} alt="Just-caught fish" className="sheet__photo" />}
+            <input
+              aria-label="Search species"
+              className="sheet__search"
+              placeholder="Search species…"
+              value={speciesQuery}
+              onChange={(e) => setSpeciesQuery(e.target.value)}
+            />
+            <ul className="sheet__list">
+              {visibleSpecies.map((s) => (
+                <li key={s.slug}>
+                  <button type="button" className="sheet__item" onClick={() => void onSpeciesChosen(s.slug)}>
+                    {s.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
       )}
 
       {step === 'lure' && (
-        <div role="dialog" aria-label="Pick a lure">
-          <button type="button" onClick={() => void saveCatch(null)}>
-            No lure
-          </button>
-          <input aria-label="Search lures" value={lureQuery} onChange={(e) => setLureQuery(e.target.value)} />
-          <ul>
-            {visibleLures.map((l) => (
-              <li key={l.id}>
-                <button type="button" onClick={() => void saveCatch(l.id)}>
-                  {l.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-          {canQuickAdd && (
-            <button type="button" onClick={() => void onQuickAddLure(lureQuery.trim())}>
-              + New lure &ldquo;{lureQuery.trim()}&rdquo;
+        <>
+          <div className="sheet-scrim" />
+          <div role="dialog" aria-label="Pick a lure" className="sheet">
+            <h2 className="sheet__title">What were you throwing?</h2>
+            {photoUrl && <img src={photoUrl} alt="Just-caught fish" className="sheet__photo" />}
+            <button type="button" className="sheet__item sheet__item--skip" onClick={() => void saveCatch(null)}>
+              No lure
             </button>
-          )}
-        </div>
+            <input
+              aria-label="Search lures"
+              className="sheet__search"
+              placeholder="Search or add a lure…"
+              value={lureQuery}
+              onChange={(e) => setLureQuery(e.target.value)}
+            />
+            <ul className="sheet__list">
+              {visibleLures.map((l) => (
+                <li key={l.id}>
+                  <button type="button" className="sheet__item" onClick={() => void saveCatch(l.id)}>
+                    {l.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {canQuickAdd && (
+              <button type="button" className="sheet__quick-add" onClick={() => void onQuickAddLure(lureQuery.trim())}>
+                + New lure &ldquo;{lureQuery.trim()}&rdquo;
+              </button>
+            )}
+          </div>
+        </>
       )}
 
-      {step === 'done' && toast && <div role="status">{toast}</div>}
+      {step === 'done' && toast && (
+        <div role="status" className="toast">
+          <span className="toast__dot" aria-hidden="true" />
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

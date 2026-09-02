@@ -1,0 +1,221 @@
+/* --- FAB: one-thumb reachable, bottom-right (packet §09) ------------------ */
+
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(var(--safe-bottom) + 20px);
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--chartreuse);
+  color: var(--navy);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: var(--shadow-fab);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+  z-index: 40;
+}
+
+.fab:active {
+  transform: scale(0.94);
+}
+
+.fab:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 3px;
+}
+
+/* --- bottom sheet: species / lure pickers ---------------------------------- */
+
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 29, 42, 0.6);
+  z-index: 45;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 46;
+  max-height: 78vh;
+  overflow-y: auto;
+  background: var(--navy-1);
+  border-top: 1px solid var(--hairline);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-elevated);
+  padding: 20px 20px calc(var(--safe-bottom) + 20px);
+  animation: sheet-up 0.2s ease-out;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.sheet__title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 14px;
+}
+
+.sheet__photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline);
+  margin-bottom: 16px;
+}
+
+.sheet__search {
+  display: block;
+  width: 100%;
+  font-family: var(--font);
+  font-size: 16px;
+  color: var(--bone);
+  background: var(--navy);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  padding: 12px 13px;
+  margin-bottom: 14px;
+}
+
+.sheet__search::placeholder {
+  color: var(--bone-32);
+}
+
+.sheet__search:focus-visible {
+  outline: none;
+  border-color: var(--chartreuse);
+  box-shadow: 0 0 0 2px rgba(223, 255, 0, 0.25);
+}
+
+.sheet__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sheet__item {
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  font-family: var(--font);
+  font-size: 16px;
+  color: var(--bone);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.sheet__item:hover {
+  background: var(--navy-2);
+}
+
+.sheet__item:focus-visible {
+  outline: none;
+  border-color: var(--chartreuse);
+}
+
+.sheet__item--skip {
+  color: var(--bone-72);
+  border: 1px dashed var(--hairline);
+  margin-bottom: 14px;
+}
+
+.sheet__quick-add {
+  display: block;
+  width: 100%;
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--navy);
+  background: var(--chartreuse);
+  border: 1px solid var(--chartreuse);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.sheet__quick-add:active {
+  transform: translateY(1px);
+}
+
+.sheet__quick-add:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 2px;
+}
+
+/* --- toast ------------------------------------------------------------------ */
+
+.toast {
+  position: fixed;
+  left: 20px;
+  right: 20px;
+  bottom: calc(var(--safe-bottom) + 92px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--navy-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  padding: 12px 16px;
+  color: var(--bone);
+  font-size: 14px;
+  animation: toast-in 0.18s ease-out;
+}
+
+.toast__dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chartreuse);
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .toast {
+    animation: none;
+  }
+}

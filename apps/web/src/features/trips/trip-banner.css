@@ -1,0 +1,89 @@
+.trip-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--navy-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+
+.trip-banner__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.trip-banner__dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chartreuse);
+  animation: trip-pulse 2s ease-in-out infinite;
+}
+
+.trip-banner__text {
+  font-size: 14px;
+  color: var(--bone-72);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-banner__prompt {
+  font-size: 14px;
+  color: var(--bone-72);
+}
+
+.trip-banner__button {
+  flex: 0 0 auto;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.trip-banner__button:active {
+  transform: translateY(1px);
+}
+
+.trip-banner__button:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 2px;
+}
+
+.trip-banner__button--start {
+  color: var(--navy);
+  background: var(--chartreuse);
+  border: 1px solid var(--chartreuse);
+}
+
+.trip-banner__button--end {
+  color: var(--bone);
+  background: transparent;
+  border: 1px solid var(--hairline);
+}
+
+@keyframes trip-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trip-banner__dot {
+    animation: none;
+  }
+}

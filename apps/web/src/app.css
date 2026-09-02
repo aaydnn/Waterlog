@@ -1,0 +1,18 @@
+.app-shell {
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 20px) 20px calc(var(--safe-bottom) + 108px);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.wordmark-logo {
+  height: 30px;
+  width: auto;
+  display: block;
+}

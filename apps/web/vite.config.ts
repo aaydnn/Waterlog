@@ -17,8 +17,8 @@ export default defineConfig({
         name: 'WaterLog',
         short_name: 'WaterLog',
         description: 'Personal fishing analytics',
-        theme_color: '#067f84',
-        background_color: '#041b1d',
+        theme_color: '#0b1d2a',
+        background_color: '#0b1d2a',
         display: 'standalone',
         icons: [
           {

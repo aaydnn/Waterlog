@@ -3,6 +3,7 @@ import type { LocalTrip, WaterlogDb } from '../../lib/db'
 import { getDb } from '../../lib/db'
 import type { SyncEngine } from '../../lib/sync/sync-engine'
 import { WebSyncEngine } from '../../lib/sync/sync-engine'
+import './trip-banner.css'
 import { endActiveTrip, getActiveTrip, startTrip } from './trip-lifecycle'
 
 export interface TripBannerProps {
@@ -36,8 +37,14 @@ export function TripBanner({ engine = new WebSyncEngine(), db = getDb() }: TripB
   if (active) {
     return (
       <div role="status" className="trip-banner">
-        <span>Fishing since {new Date(active.started_at).toLocaleTimeString()}</span>
-        <button type="button" onClick={() => void onEnd()}>
+        <span className="trip-banner__status">
+          <span className="trip-banner__dot" aria-hidden="true" />
+          <span className="trip-banner__text">
+            Fishing since{' '}
+            <span className="tabular-nums">{new Date(active.started_at).toLocaleTimeString()}</span>
+          </span>
+        </span>
+        <button type="button" className="trip-banner__button trip-banner__button--end" onClick={() => void onEnd()}>
           End trip
         </button>
       </div>
@@ -46,7 +53,12 @@ export function TripBanner({ engine = new WebSyncEngine(), db = getDb() }: TripB
 
   return (
     <div className="trip-banner">
-      <button type="button" onClick={() => void onStart()}>
+      <span className="trip-banner__prompt">No active trip</span>
+      <button
+        type="button"
+        className="trip-banner__button trip-banner__button--start"
+        onClick={() => void onStart()}
+      >
         Start trip
       </button>
     </div>
