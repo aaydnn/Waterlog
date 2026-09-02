@@ -1,4 +1,4 @@
-import type { Catch, Trip } from '@waterlog/schema'
+import type { Catch, Lure, Trip } from '@waterlog/schema'
 
 /** Minimal typed fetch wrapper for the WaterLog API. Feature endpoints are
  * added in Epics 1+; Epic 0 only needs health. */
@@ -40,6 +40,13 @@ export interface SyncBatchResponse {
   errors: Array<{ client_id: string; message: string }>
 }
 
+export interface LureCreateRequest {
+  name: string
+  family?: string | null
+  color?: string | null
+  cost_cents?: number | null
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -66,4 +73,18 @@ export const apiClient = {
   health: () => request<HealthResponse>('/api/health'),
   sync: (body: SyncBatchRequest) =>
     request<SyncBatchResponse>('/api/sync', { method: 'POST', body: JSON.stringify(body) }),
+  listLures: () => request<{ lures: Lure[] }>('/api/lures'),
+  createLure: (body: LureCreateRequest) =>
+    request<{ lure: Lure }>('/api/lures', { method: 'POST', body: JSON.stringify(body) }),
+  endTrip: (tripId: string, endedAt: number) =>
+    request<{ trip: Trip }>(`/api/trips/${tripId}/end`, {
+      method: 'PATCH',
+      body: JSON.stringify({ ended_at: endedAt }),
+    }),
+  uploadPhoto: (blob: Blob) =>
+    request<{ photo_key: string }>('/api/photos', {
+      method: 'POST',
+      headers: { 'content-type': blob.type },
+      body: blob,
+    }),
 }

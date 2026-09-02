@@ -1,4 +1,4 @@
-import type { Catch, Trip } from '@waterlog/schema'
+import type { Catch, Lure, Trip } from '@waterlog/schema'
 import Dexie, { type Table } from 'dexie'
 
 // Local mirrors of the server payload shapes (packages/schema Trip/Catch), plus the bookkeeping
@@ -30,15 +30,27 @@ export interface LocalCatch extends CatchFields {
   synced_at: number | null
 }
 
+/** A trip that's already synced (has a server id) and was ended while offline — /api/sync can
+ * never apply the end (it only inserts), so the dedicated end-trip call is queued here and
+ * retried by the sync engine like any other pending write. */
+export interface PendingTripEnd {
+  trip_id: string
+  ended_at: number
+}
+
 export class WaterlogDb extends Dexie {
   trips!: Table<LocalTrip, string>
   catches!: Table<LocalCatch, string>
+  lures!: Table<Lure, string>
+  pendingTripEnds!: Table<PendingTripEnd, string>
 
   constructor(name = 'waterlog') {
     super(name)
     this.version(1).stores({
       trips: 'local_id, client_id, id, synced_at',
       catches: 'local_id, client_id, id, trip_id, synced_at',
+      lures: 'id, name',
+      pendingTripEnds: 'trip_id',
     })
   }
 }

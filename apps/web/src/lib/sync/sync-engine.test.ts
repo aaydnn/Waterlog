@@ -224,3 +224,73 @@ describe('WebSyncEngine.flush', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 })
+
+describe('WebSyncEngine.endTrip', () => {
+  it('an unsynced trip is only updated locally — no network call, nothing queued', async () => {
+    const db = freshDb()
+    const engine = new WebSyncEngine(db)
+    const localId = await engine.enqueueTrip(tripDraft())
+
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    await engine.endTrip(localId, 1_780_003_600_000)
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect((await db.trips.get(localId))!.ended_at).toBe(1_780_003_600_000)
+    expect(await db.pendingTripEnds.count()).toBe(0)
+  })
+
+  it('an already-synced trip is updated locally and queues a pending end, drained by flush()', async () => {
+    const db = freshDb()
+    const engine = new WebSyncEngine(db)
+    const localId = await engine.enqueueTrip(tripDraft())
+    const pendingTrip = await db.trips.get(localId)
+    mockFetchOnce({
+      trips: [serverTrip({ id: 'srv_trip_end', client_id: pendingTrip!.client_id })],
+      catches: [],
+      errors: [],
+    })
+    await engine.flush() // trip is now synced, has a server id
+
+    await engine.endTrip(localId, 1_780_003_600_000)
+    expect((await db.trips.get(localId))!.ended_at).toBe(1_780_003_600_000)
+    expect(await db.pendingTripEnds.get('srv_trip_end')).toEqual({
+      trip_id: 'srv_trip_end',
+      ended_at: 1_780_003_600_000,
+    })
+
+    const endFetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ trip: serverTrip({ id: 'srv_trip_end', ended_at: 1_780_003_600_000 }) }),
+    })
+    vi.stubGlobal('fetch', endFetchSpy)
+
+    const result = await engine.flush()
+    expect(result).toEqual({ pushed: 1, failed: 0 })
+    expect(endFetchSpy).toHaveBeenCalledWith(
+      '/api/trips/srv_trip_end/end',
+      expect.objectContaining({ method: 'PATCH' }),
+    )
+    expect(await db.pendingTripEnds.count()).toBe(0)
+  })
+
+  it('a failed end-trip call during flush leaves it queued for retry', async () => {
+    const db = freshDb()
+    const engine = new WebSyncEngine(db)
+    const localId = await engine.enqueueTrip(tripDraft())
+    const pendingTrip = await db.trips.get(localId)
+    mockFetchOnce({
+      trips: [serverTrip({ id: 'srv_trip_retry', client_id: pendingTrip!.client_id })],
+      catches: [],
+      errors: [],
+    })
+    await engine.flush()
+    await engine.endTrip(localId, 1_780_003_600_000)
+
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    const result = await engine.flush()
+    expect(result).toEqual({ pushed: 0, failed: 1 })
+    expect(await db.pendingTripEnds.count()).toBe(1)
+  })
+})

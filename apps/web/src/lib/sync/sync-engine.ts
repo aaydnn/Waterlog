@@ -26,6 +26,9 @@ export interface SyncResult {
 export interface SyncEngine {
   enqueueTrip(draft: TripDraft): Promise<string>
   enqueueCatch(draft: CatchDraft): Promise<string>
+  /** `local_id` from enqueueTrip(). Always applies locally right away; if the trip has already
+   * synced, also queues the dedicated end-trip call (ADR-0003 — /api/sync can't apply updates). */
+  endTrip(localId: string, endedAt: number): Promise<void>
   flush(): Promise<SyncResult>
 }
 
@@ -47,10 +50,37 @@ export class WebSyncEngine implements SyncEngine {
     return row.local_id
   }
 
+  async endTrip(localId: string, endedAt: number): Promise<void> {
+    const trip = await this.db.trips.get(localId)
+    if (!trip) throw new Error(`endTrip: no local trip ${localId}`)
+
+    await this.db.trips.update(localId, { ended_at: endedAt })
+    if (trip.id) {
+      // Already synced — /api/sync only inserts, so the end has to go through the dedicated
+      // endpoint. Queue it; flush() drains this alongside the regular batch.
+      await this.db.pendingTripEnds.put({ trip_id: trip.id, ended_at: endedAt })
+    }
+    // else: unsynced — the ended_at just written above rides along in this trip's first
+    // INSERT, no separate call needed.
+  }
+
   async flush(): Promise<SyncResult> {
+    let pushed = 0
+    let failed = 0
+
+    for (const end of await this.db.pendingTripEnds.toArray()) {
+      try {
+        await apiClient.endTrip(end.trip_id, end.ended_at)
+        await this.db.pendingTripEnds.delete(end.trip_id)
+        pushed += 1
+      } catch {
+        failed += 1
+      }
+    }
+
     const pendingTrips = await this.db.trips.filter((t) => t.synced_at === null).toArray()
     const pendingCatches = await this.db.catches.filter((c) => c.synced_at === null).toArray()
-    if (pendingTrips.length === 0 && pendingCatches.length === 0) return { pushed: 0, failed: 0 }
+    if (pendingTrips.length === 0 && pendingCatches.length === 0) return { pushed, failed }
 
     // A pending catch's trip_id may be another pending trip's local_id (the server hasn't
     // assigned that trip a real id yet) — resolve it to the trip's client_id, the identifier
@@ -89,11 +119,10 @@ export class WebSyncEngine implements SyncEngine {
       })
     } catch {
       // Offline or the API is down: leave everything queued for the next flush().
-      return { pushed: 0, failed: pendingTrips.length + pendingCatches.length }
+      return { pushed, failed: failed + pendingTrips.length + pendingCatches.length }
     }
 
     const now = Date.now()
-    let pushed = 0
 
     for (const trip of response.trips) {
       const local = pendingTrips.find((t) => t.client_id === trip.client_id)
@@ -114,6 +143,6 @@ export class WebSyncEngine implements SyncEngine {
       pushed += 1
     }
 
-    return { pushed, failed: response.errors.length }
+    return { pushed, failed: failed + response.errors.length }
   }
 }
