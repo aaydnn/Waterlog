@@ -1,0 +1,72 @@
+# WaterLog
+
+Personal fishing analytics PWA. Full product/architecture spec:
+**`docs/waterlog-startup-packet.md`** — read it before any feature work. It is the single source of
+truth for product principles, data model, pattern-engine math, and build order. This file only
+pulls out the rules that must never be silently violated.
+
+## Non-negotiable build rules
+
+- **Work epic-by-epic.** Don't start the next epic until the current one's acceptance criteria
+  (see packet §10) pass. Current epic: **1 — Capture & Sync**.
+- **Never invent payload shapes.** All client/server payload shapes live in `packages/schema`
+  (Zod), imported by both `apps/web` and every `workers/*`. Extend it first; never redefine a
+  shape locally.
+- **Migrations are append-only**, numbered `NNNN_description.sql` in `migrations/`. Never edit a
+  committed migration — add a new one.
+- **`packages/patterns` requires 100% branch coverage** and zero I/O (pure TS) — the cron worker
+  feeds it rows, it never fetches anything itself.
+- **Any deviation from the packet requires an ADR** in `docs/adr/`, committed in the same PR as
+  the deviating code.
+- **Sync idempotency is load-bearing**: replaying a sync batch twice must create zero duplicates.
+  Dedupe on `client_id` (client-generated ULID) via `INSERT ... ON CONFLICT(client_id) DO NOTHING`,
+  then `SELECT` the canonical row — server always assigns `id`.
+- **Analytics are rate-based, never raw counts.** Every hour of every trip (skunked or not) needs
+  a `conditions` row so the pattern engine has an exposure denominator.
+
+## Known open deviation (not yet resolved with an ADR)
+
+The packet's data-model convention (§07) is **TEXT ULIDs as PKs**. The current implementation
+(`workers/api/src/lib/users.ts` and friends) generates server-assigned primary keys with
+`crypto.randomUUID()` instead. Client-generated `client_id` values are ULIDs as specified; only
+the server-assigned `id` columns diverge. Resolve this — either switch `id` generation to ULIDs,
+or write an ADR that formally accepts UUIDs — before it spreads to more tables.
+
+## Repo map
+
+| Path | What |
+| --- | --- |
+| `apps/web` | React + Vite PWA (offline-first, Dexie/IndexedDB) |
+| `workers/api` | Hono API on Cloudflare Workers (D1, R2, Queues) — auth, CRUD, sync, Stripe webhooks |
+| `workers/enrich` | Queue consumer — condition enrichment (Open-Meteo, USGS, moon/solar) |
+| `workers/cron` | Nightly pattern recompute + briefing pushes |
+| `packages/schema` | Zod schemas mirroring the D1 tables — single source of truth for payload shapes |
+| `packages/patterns` | Pure-TS pattern math (Epic 4), zero I/O, 100% branch coverage required |
+| `migrations/` | Append-only D1 migrations + dev seed (seed is not a migration) |
+| `docs/adr/` | Architecture decision records — required for any packet deviation |
+| `docs/waterlog-startup-packet.md` | The master spec (see above) |
+
+## Develop
+
+```bash
+pnpm install
+pnpm -r test          # all packages
+pnpm -r typecheck
+pnpm -r lint
+pnpm --filter web dev # PWA dev server
+```
+
+API worker locally:
+
+```bash
+cd workers/api
+pnpm dev              # wrangler dev — serves GET /api/health
+pnpm migrate          # wrangler d1 migrations apply DB --local
+pnpm seed             # dev-only seed; NEVER run against production
+```
+
+## Deploy
+
+Everything deploys from CI (`.github/workflows/ci.yml`) via `wrangler`. Web (Cloudflare Pages)
+deploys on every PR (preview) and on push to `main` (production). Workers (api/enrich/cron) and
+the waitlist worker deploy via `wrangler deploy` on merge to `main` only.
