@@ -3,8 +3,9 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { AppEnv } from '../env'
 import { catchCreateInput, upsertCatchByClientId } from '../lib/catches'
+import { enqueueEnrichment, enqueueTripHours } from '../lib/enrichment'
 import { requireAuth } from '../middleware/require-auth'
-import { createOrphanTrip, getTripById, tripCreateInput, upsertTripByClientId } from '../lib/trips'
+import { getTripById, tripCreateInput, upsertOrphanTrip, upsertTripByClientId } from '../lib/trips'
 
 const syncRequestSchema = z.object({
   trips: z.array(tripCreateInput).default([]),
@@ -32,7 +33,7 @@ syncRoutes.post('/', requireAuth, async (c) => {
   const resultTrips: Trip[] = []
   const clientTripIds = new Map<string, string>() // this batch's trip client_id -> server trip id
   for (const tripInput of trips) {
-    const trip = await upsertTripByClientId(db, user.id, tripInput)
+    const { row: trip } = await upsertTripByClientId(db, user.id, tripInput)
     clientTripIds.set(tripInput.client_id, trip.id)
     resultTrips.push(trip)
   }
@@ -55,13 +56,19 @@ syncRoutes.post('/', requireAuth, async (c) => {
         tripId = existing.id
       }
     } else {
-      const orphan = await createOrphanTrip(db, user.id, catchInput.caught_at)
+      const { row: orphan } = await upsertOrphanTrip(db, user.id, catchInput.client_id, catchInput.caught_at)
       resultTrips.push(orphan)
       tripId = orphan.id
     }
 
-    resultCatches.push(await upsertCatchByClientId(db, user.id, tripId, catchInput))
+    const { row: catchRow } = await upsertCatchByClientId(db, user.id, tripId, catchInput)
+    resultCatches.push(catchRow)
+    await enqueueEnrichment(db, c.env.ENRICH_QUEUE, user.id, { type: 'catch', catch_id: catchRow.id })
   }
+
+  // Dispatch after catches are persisted so trips without a water-body centroid
+  // can use a same-batch catch's coordinates, including synthetic orphan trips.
+  for (const trip of resultTrips) await enqueueTripHours(db, c.env.ENRICH_QUEUE, trip)
 
   return c.json({ trips: resultTrips, catches: resultCatches, errors })
 })

@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
 import { generateToken, sha256Hex } from '../src/lib/crypto'
 import { SESSION_TTL_MS } from '../src/lib/sessions'
@@ -66,6 +66,55 @@ function catchInput(overrides: Record<string, unknown> = {}) {
 }
 
 describe('POST /api/sync', () => {
+  it('does not enqueue or return another owner\'s rows through a colliding client_id', async () => {
+    const owner = await createUserAndSession('collision-owner@example.com')
+    const other = await createUserAndSession('collision-other@example.com')
+    await sync(owner.cookie, { trips: [tripInput()], catches: [catchInput()] })
+    const send = vi.spyOn(env.ENRICH_QUEUE, 'send')
+    try {
+      const tripCollision = await sync(other.cookie, { trips: [tripInput()] })
+      expect(tripCollision.status).toBe(500)
+      const catchCollision = await sync(other.cookie, {
+        trips: [tripInput({ client_id: 'other_trip' })],
+        catches: [catchInput({ trip_id: 'other_trip' })],
+      })
+      expect(catchCollision.status).toBe(500)
+      expect(send).not.toHaveBeenCalled()
+    } finally { send.mockRestore() }
+  })
+
+  it('backfills a completed offline trip and an orphan trip, once per trip', async () => {
+    const { cookie } = await createUserAndSession('offline-backfill@example.com')
+    const started = Date.UTC(2026, 5, 1, 10, 15)
+    const batch = {
+      trips: [tripInput({ started_at: started, ended_at: started + 4.5 * 3_600_000 })],
+      catches: [catchInput(), catchInput({ client_id: 'orphan_backfill', trip_id: undefined })],
+    }
+    const send = vi.spyOn(env.ENRICH_QUEUE, 'send')
+    try {
+      expect((await sync(cookie, batch)).status).toBe(200)
+      const jobs = send.mock.calls.map(([job]) => job).filter((job) => job.type === 'trip_hours')
+      expect(jobs).toHaveLength(2)
+      expect(jobs.map((job) => job.hour_buckets.length).sort()).toEqual([1, 5])
+      send.mockClear()
+      expect((await sync(cookie, batch)).status).toBe(200)
+      expect(send).not.toHaveBeenCalled()
+    } finally { send.mockRestore() }
+  })
+
+  it('retries a failed catch queue send on replay without duplicating catches', async () => {
+    const { cookie, userId } = await createUserAndSession('dispatch-retry@example.com')
+    const batch = { trips: [tripInput()], catches: [catchInput()] }
+    const send = vi.spyOn(env.ENRICH_QUEUE, 'send').mockRejectedValueOnce(new Error('queue unavailable'))
+    try {
+      expect((await sync(cookie, batch)).status).toBe(500)
+      expect((await sync(cookie, batch)).status).toBe(200)
+      expect(send).toHaveBeenCalledTimes(2)
+      const rows = await env.DB.prepare('SELECT id FROM catches WHERE user_id = ?').bind(userId).all()
+      expect(rows.results).toHaveLength(1)
+    } finally { send.mockRestore() }
+  })
+
   it('401s without a session', async () => {
     const res = await sync('', { trips: [], catches: [] })
     expect(res.status).toBe(401)
@@ -130,6 +179,42 @@ describe('POST /api/sync', () => {
     expect(body.trips[0]!.auto_created).toBe(1)
     expect(body.trips[0]!.ended_at - body.trips[0]!.started_at).toBe(60 * 60 * 1000)
     expect(body.catches[0]!.trip_id).toBe(body.trips[0]!.id)
+  })
+
+  it('replaying an orphan-catch batch twice creates exactly one orphan trip, not two', async () => {
+    const { cookie, userId } = await createUserAndSession('orphan-replay@example.com')
+    const batch = { catches: [catchInput({ client_id: 'cat_orphan_replay', trip_id: undefined })] }
+
+    const first = await sync(cookie, batch)
+    const second = await sync(cookie, batch)
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+
+    const firstBody = (await first.json()) as { trips: { id: string }[] }
+    const secondBody = (await second.json()) as { trips: { id: string }[] }
+    expect(secondBody.trips[0]!.id).toBe(firstBody.trips[0]!.id)
+
+    const trips = await env.DB.prepare(
+      "SELECT count(*) AS n FROM trips WHERE user_id = ? AND auto_created = 1",
+    )
+      .bind(userId)
+      .first<{ n: number }>()
+    expect(trips!.n).toBe(1)
+  })
+
+  it('enqueues an enrich job only for a genuinely new catch, never on replay', async () => {
+    const { cookie } = await createUserAndSession('enqueue-once@example.com')
+    const batch = { trips: [tripInput()], catches: [catchInput()] }
+
+    const send = vi.spyOn(env.ENRICH_QUEUE, 'send')
+    await sync(cookie, batch)
+    expect(send).toHaveBeenCalledOnce()
+    expect(send.mock.calls[0]![0]).toMatchObject({ type: 'catch' })
+
+    send.mockClear()
+    await sync(cookie, batch) // replay
+    expect(send).not.toHaveBeenCalled()
+    send.mockRestore()
   })
 
   it('a catch can reference a trip synced in an earlier batch by its server id', async () => {

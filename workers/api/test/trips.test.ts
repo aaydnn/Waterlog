@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
 import { generateToken, sha256Hex } from '../src/lib/crypto'
 import { SESSION_TTL_MS } from '../src/lib/sessions'
@@ -38,6 +38,22 @@ function endTrip(cookie: string, tripId: string, endedAt: number) {
 }
 
 describe('PATCH /api/trips/:id/end', () => {
+  it('repairs a failed queue send when ending the same trip again', async () => {
+    const { cookie } = await createUserAndSession('end-send-retry@example.com')
+    const started = Date.UTC(2026, 5, 1, 10)
+    const response = await sync(cookie, {
+      trips: [{ client_id: 'retry_trip', water_body_id: null, started_at: started, ended_at: null, auto_created: 0, planned: 0, notes: null }],
+    })
+    const { trips } = await response.json() as { trips: { id: string }[] }
+    const send = vi.spyOn(env.ENRICH_QUEUE, 'send').mockRejectedValueOnce(new Error('queue unavailable'))
+    try {
+      expect((await endTrip(cookie, trips[0]!.id, started + 3_600_000)).status).toBe(500)
+      expect((await endTrip(cookie, trips[0]!.id, started + 7_200_000)).status).toBe(200)
+      expect(send).toHaveBeenCalledTimes(2)
+      expect(send.mock.calls[1]![0]).toMatchObject({ hour_buckets: [Math.floor(started / 3_600_000)] })
+    } finally { send.mockRestore() }
+  })
+
   it('401s without a session', async () => {
     const res = await app.request(
       '/api/trips/anything/end',
@@ -78,6 +94,42 @@ describe('PATCH /api/trips/:id/end', () => {
     expect(replay.status).toBe(200)
     const body = (await replay.json()) as { trip: { ended_at: number } }
     expect(body.trip.ended_at).toBe(1_780_003_600_000) // unchanged, not overwritten
+  })
+
+  it('ending a 4.5h trip sends one trip_hours enrich job with 5 hour buckets', async () => {
+    const send = vi.spyOn(env.ENRICH_QUEUE, 'send')
+    const { cookie } = await createUserAndSession('backfill@example.com')
+    const started = Date.UTC(2026, 5, 1, 10, 15)
+    const syncRes = await sync(cookie, {
+      trips: [{ client_id: 'bt1', water_body_id: null, started_at: started, ended_at: null, auto_created: 0, planned: 1, notes: null }],
+    })
+    const { trips } = (await syncRes.json()) as { trips: { id: string }[] }
+
+    const ended = started + 4.5 * 60 * 60 * 1000
+    const res = await endTrip(cookie, trips[0]!.id, ended)
+    expect(res.status).toBe(200)
+
+    expect(send).toHaveBeenCalledOnce()
+    const [message] = send.mock.calls[0]!
+    expect(message).toMatchObject({ type: 'trip_hours', trip_id: trips[0]!.id })
+    expect((message as { hour_buckets: number[] }).hour_buckets).toHaveLength(5)
+
+    send.mockRestore()
+  })
+
+  it('replaying an already-ended trip does not re-enqueue trip-hour backfill', async () => {
+    const { cookie } = await createUserAndSession('backfill-replay@example.com')
+    const started = 1_780_000_000_000
+    const syncRes = await sync(cookie, {
+      trips: [{ client_id: 'bt2', water_body_id: null, started_at: started, ended_at: null, auto_created: 0, planned: 1, notes: null }],
+    })
+    const { trips } = (await syncRes.json()) as { trips: { id: string }[] }
+
+    await endTrip(cookie, trips[0]!.id, started + 60 * 60 * 1000)
+    const send = vi.spyOn(env.ENRICH_QUEUE, 'send')
+    await endTrip(cookie, trips[0]!.id, started + 999 * 60 * 60 * 1000) // replay with a different (stale) end time
+    expect(send).not.toHaveBeenCalled()
+    send.mockRestore()
   })
 
   it("does not end another user's trip", async () => {

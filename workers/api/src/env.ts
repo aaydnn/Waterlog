@@ -1,10 +1,10 @@
-import type { User } from '@waterlog/schema'
+import type { EnrichJob, User } from '@waterlog/schema'
 
 /** Bindings + vars declared in wrangler.toml, as a Hono env. */
 export interface ApiBindings {
   DB: D1Database
   PHOTOS: R2Bucket
-  ENRICH_QUEUE: Queue
+  ENRICH_QUEUE: Queue<EnrichJob>
   APP_URL: string
   GOOGLE_CLIENT_ID: string
   /** Set via `wrangler secret put`; absent in local dev unless configured. */

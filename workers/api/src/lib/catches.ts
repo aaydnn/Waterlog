@@ -2,6 +2,7 @@ import type { Catch } from '@waterlog/schema'
 import { catchSchema } from '@waterlog/schema'
 import { z } from 'zod'
 import { newId } from './ids'
+import type { UpsertResult } from './upsert-result'
 
 export const catchCreateInput = catchSchema
   .omit({
@@ -25,15 +26,16 @@ const CATCH_COLUMNS =
   'id, user_id, trip_id, lure_id, species, caught_at, lat, lng, photo_key, length_mm, weight_g, depth_m, released, notes, client_id, enrich_status, created_at, updated_at, deleted_at'
 
 /** Idempotent by client_id, same idiom as trips (ADR-0003): INSERT ... ON CONFLICT DO NOTHING,
- * then SELECT the canonical row. `tripId` is the already-resolved server trip id. */
+ * then SELECT the canonical row. `tripId` is the already-resolved server trip id. `isNew` reflects
+ * D1's reported change count, so the sync route can enqueue enrichment exactly once per catch. */
 export async function upsertCatchByClientId(
   db: D1Database,
   userId: string,
   tripId: string,
   input: CatchCreateInput,
-): Promise<Catch> {
+): Promise<UpsertResult<Catch>> {
   const now = Date.now()
-  await db
+  const result = await db
     .prepare(
       `INSERT INTO catches (${CATCH_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL) ON CONFLICT(client_id) DO NOTHING`,
     )
@@ -59,9 +61,9 @@ export async function upsertCatchByClientId(
     .run()
 
   const row = await db
-    .prepare(`SELECT ${CATCH_COLUMNS} FROM catches WHERE client_id = ?`)
-    .bind(input.client_id)
+    .prepare(`SELECT ${CATCH_COLUMNS} FROM catches WHERE client_id = ? AND user_id = ?`)
+    .bind(input.client_id, userId)
     .first<Catch>()
   if (!row) throw new Error(`catch upsert did not produce a row for client_id ${input.client_id}`)
-  return row
+  return { row, isNew: result.meta.changes > 0 }
 }
