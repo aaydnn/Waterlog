@@ -8,7 +8,9 @@ pulls out the rules that must never be silently violated.
 ## Non-negotiable build rules
 
 - **Work epic-by-epic.** Don't start the next epic until the current one's acceptance criteria
-  (see packet §10) pass. Current epic: **1 — Capture & Sync**.
+  (see packet §10) pass. Current epic: **2 — Enrichment**. Its four automated acceptance
+  criteria pass; see `docs/epic-2-acceptance.md` for evidence and release notes. Deployment
+  and founder-water field validation remain pending. Epic 1 (Capture & Sync) is done.
 - **Never invent payload shapes.** All client/server payload shapes live in `packages/schema`
   (Zod), imported by both `apps/web` and every `workers/*`. Extend it first; never redefine a
   shape locally.
@@ -23,14 +25,6 @@ pulls out the rules that must never be silently violated.
   then `SELECT` the canonical row — server always assigns `id`.
 - **Analytics are rate-based, never raw counts.** Every hour of every trip (skunked or not) needs
   a `conditions` row so the pattern engine has an exposure denominator.
-
-## Known open deviation (not yet resolved with an ADR)
-
-The packet's data-model convention (§07) is **TEXT ULIDs as PKs**. The current implementation
-(`workers/api/src/lib/users.ts` and friends) generates server-assigned primary keys with
-`crypto.randomUUID()` instead. Client-generated `client_id` values are ULIDs as specified; only
-the server-assigned `id` columns diverge. Resolve this — either switch `id` generation to ULIDs,
-or write an ADR that formally accepts UUIDs — before it spreads to more tables.
 
 ## Repo map
 

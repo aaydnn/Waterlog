@@ -31,6 +31,10 @@ cd workers/api
 pnpm dev              # wrangler dev
 ```
 
+Enrichment uses modern USGS Water Data APIs. Configure `USGS_API_KEY` as a
+server-side secret before production deployment; see
+[USGS setup and migration validation](docs/usgs-migration.md).
+
 ## Database (local D1)
 
 ```bash
