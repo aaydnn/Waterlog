@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   catchSchema,
   conditionsSchema,
+  enrichJobSchema,
   lureSchema,
   patternCacheRowSchema,
   tripSchema,
@@ -145,6 +146,18 @@ describe('schema round-trips against seed-shaped rows', () => {
       computed_at: 1783170000000,
     }
     expect(patternCacheRowSchema.parse(row)).toEqual(row)
+  })
+
+  it('enrich jobs (discriminated union)', () => {
+    expect(enrichJobSchema.parse({ type: 'catch', catch_id: 'cat_00003' })).toEqual({
+      type: 'catch',
+      catch_id: 'cat_00003',
+    })
+    expect(
+      enrichJobSchema.parse({ type: 'trip_hours', trip_id: 'trp_00001', hour_buckets: [485712, 485713] }),
+    ).toEqual({ type: 'trip_hours', trip_id: 'trp_00001', hour_buckets: [485712, 485713] })
+    expect(enrichJobSchema.safeParse({ type: 'catch', trip_id: 'trp_00001' }).success).toBe(false)
+    expect(enrichJobSchema.safeParse({ type: 'unknown' }).success).toBe(false)
   })
 
   it('rejects out-of-enum values', () => {

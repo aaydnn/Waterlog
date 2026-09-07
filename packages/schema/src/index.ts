@@ -7,6 +7,7 @@
 // - SQLite has no booleans: flag columns are 0 | 1 (`sqliteBool`).
 // - NULLable columns are `.nullable()`; enum-like TEXT columns are z.enum.
 import { z } from 'zod'
+export { usgsPageSchema, usgsSeriesFeatureSchema, usgsReadingFeatureSchema } from './usgs'
 
 export const SCHEMA_VERSION = 1
 
@@ -131,6 +132,23 @@ export const conditionsSchema = z.object({
 export type Conditions = z.infer<typeof conditionsSchema>
 
 export const confidenceSchema = z.enum(['early', 'promising', 'solid'])
+
+// Epic 2: the ENRICH_QUEUE message shape, shared by the api (producer) and enrich (consumer)
+// workers so neither side can drift from the other.
+export const enrichCatchJobSchema = z.object({
+  type: z.literal('catch'),
+  catch_id: z.string(),
+})
+export const enrichTripHoursJobSchema = z.object({
+  type: z.literal('trip_hours'),
+  trip_id: z.string(),
+  hour_buckets: z.array(z.number().int()),
+})
+export const enrichJobSchema = z.discriminatedUnion('type', [
+  enrichCatchJobSchema,
+  enrichTripHoursJobSchema,
+])
+export type EnrichJob = z.infer<typeof enrichJobSchema>
 
 export const patternCacheRowSchema = z.object({
   id: z.string(),
