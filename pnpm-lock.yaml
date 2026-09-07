@@ -176,10 +176,29 @@ importers:
         version: 4.110.0(@cloudflare/workers-types@5.20260714.1)
 
   workers/enrich:
+    dependencies:
+      '@waterlog/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+      suncalc:
+        specifier: ^1.9.0
+        version: 1.9.0
+      ulid:
+        specifier: ^3.0.2
+        version: 3.0.2
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
     devDependencies:
+      '@cloudflare/vitest-pool-workers':
+        specifier: ^0.9.14
+        version: 0.9.14(@cloudflare/workers-types@5.20260714.1)(@vitest/runner@3.2.7)(@vitest/snapshot@3.2.7)(vitest@3.2.7(jsdom@30.0.1)(terser@5.49.0))
       '@cloudflare/workers-types':
         specifier: ^5.20260708.1
         version: 5.20260714.1
+      '@types/suncalc':
+        specifier: ^1.9.2
+        version: 1.9.2
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
@@ -2265,6 +2284,9 @@ packages:
   '@types/resolve@1.20.2':
     resolution: {integrity: sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q==}
 
+  '@types/suncalc@1.9.2':
+    resolution: {integrity: sha512-ATAGBHHfA1TlE2tjfidLyTcysjoT2JHHEAmWRULh73SU9UTn++j5fqHEW16X6Y/2Li87jEQXzgu4R/OOdlDqzw==}
+
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
 
@@ -3651,6 +3673,9 @@ packages:
 
   strip-literal@3.1.0:
     resolution: {integrity: sha512-8r3mkIM/2+PpjHoOtiAW8Rg3jJLHaV7xPwG+YRGrv6FP0wwk/toTpATxWYOW0BKdWwl82VT2tFYi5DlROa0Mxg==}
+
+  suncalc@1.9.0:
+    resolution: {integrity: sha512-vMJ8Byp1uIPoj+wb9c1AdK4jpkSKVAywgHX0lqY7zt6+EWRRC3Z+0Ucfjy/0yxTVO1hwwchZe4uoFNqrIC24+A==}
 
   supports-color@10.2.2:
     resolution: {integrity: sha512-SS+jx45GF1QjgEXQx4NJZV9ImqmO2NPz5FNsIHrsDjh2YsHnawpan7SNQ1o8NuhrbHZy9AZhIoCUiCeaW/C80g==}
@@ -5859,6 +5884,8 @@ snapshots:
 
   '@types/resolve@1.20.2': {}
 
+  '@types/suncalc@1.9.2': {}
+
   '@types/trusted-types@2.0.7': {}
 
   '@typescript-eslint/eslint-plugin@8.64.0(@typescript-eslint/parser@8.64.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5)(typescript@5.9.3)':
@@ -7589,6 +7616,8 @@ snapshots:
   strip-literal@3.1.0:
     dependencies:
       js-tokens: 9.0.1
+
+  suncalc@1.9.0: {}
 
   supports-color@10.2.2: {}
 

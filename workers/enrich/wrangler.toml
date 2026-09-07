@@ -2,13 +2,16 @@
 name = "waterlog-enrich"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
+# Production secret: pnpm exec wrangler secret put USGS_API_KEY
+# Send only from this worker; never put the value in this file or VITE_* variables.
 
 [[queues.consumers]]
 queue = "waterlog-enrich"
 max_batch_size = 10
-max_retries = 3
+max_retries = 4
 
 [[d1_databases]]
 binding = "DB"
 database_name = "waterlog-db"
 database_id = "8b96aa01-ac65-4e49-a0d0-abc785d60c43"
+migrations_dir = "../../migrations"
