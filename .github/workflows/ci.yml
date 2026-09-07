@@ -39,6 +39,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @waterlog/api exec wrangler d1 migrations apply DB --remote
       - run: pnpm --filter @waterlog/api exec wrangler deploy
       - run: pnpm --filter @waterlog/enrich exec wrangler deploy
       - run: pnpm --filter @waterlog/cron exec wrangler deploy
