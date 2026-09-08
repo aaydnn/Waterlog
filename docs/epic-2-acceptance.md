@@ -112,6 +112,25 @@ discontinued station rather than returning stale data.
   first catch that resolves a gauge caches it for every later catch on that water, however
   far away. On Norris, only the NE corner can resolve one at all.
 
+### What was done about it
+
+[ADR-0008](adr/0008-nwps-reservoir-and-water-temp.md) adds NOAA NWPS as a second water source.
+It is keyless like every other source (packet §06) and publishes hourly reservoir pool elevation
+for 849 gauges nationwide, 17 in Tennessee — covering essentially every TVA lake. Norris now
+resolves through `NRST1`. Lake Oliphant, a 40-acre SCDNR state lake, has no instrumentation and
+never will, so weather and astronomy remain its complete picture.
+
+Pool gauges are mapped explicitly on `water_bodies.nwps_gauge_id`, never by proximity: from the
+Norris centroid, Cherokee Dam is 26.6 km away and Norris Dam ~40 km, so a nearest-wins rule would
+have silently resolved Norris Lake to the wrong reservoir.
+
+Water temperature now comes from an angler reading (`trips.water_temp_c`, entered in the trip
+banner), a USGS series where one exists, or a damped air-temperature model — with
+`conditions.water_temp_source` recording which, so Epic 4 can weight a measurement above a guess.
+
+The retry problem found here is fixed: a gauge lookup that finds nothing in range is now `done`
+rather than `partial`, so a permanently gaugeless water no longer burns five attempts per job.
+
 ### Still outstanding
 
 One real catch and one skunked trip end to end, which needs an actual trip.

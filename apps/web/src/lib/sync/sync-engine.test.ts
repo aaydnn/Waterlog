@@ -18,6 +18,7 @@ function tripDraft(overrides: Partial<TripDraft> = {}): TripDraft {
     auto_created: 0,
     planned: 1,
     notes: null,
+    water_temp_c: null,
     ...overrides,
   }
 }
@@ -50,6 +51,7 @@ function serverTrip(overrides: Partial<Trip> = {}): Trip {
     auto_created: 0,
     planned: 1,
     notes: null,
+    water_temp_c: null,
     client_id: null,
     created_at: 1_780_000_000_000,
     updated_at: 1_780_000_000_000,
@@ -257,6 +259,7 @@ describe('WebSyncEngine.endTrip', () => {
     expect(await db.pendingTripEnds.get('srv_trip_end')).toEqual({
       trip_id: 'srv_trip_end',
       ended_at: 1_780_003_600_000,
+      water_temp_c: null,
     })
 
     const endFetchSpy = vi.fn().mockResolvedValue({

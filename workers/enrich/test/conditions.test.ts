@@ -191,7 +191,7 @@ describe('enrichCatch', () => {
     expect(catchRow!.enrich_status).toBe('done')
   })
 
-  it('missing gauge -> partial, still writes the row, never blocking', async () => {
+  it('no gauge in range -> done, not partial: absence is permanent, not worth retrying', async () => {
     const userId = 'usr_nogauge'
     const caughtAt = Date.UTC(2026, 5, 1, 14, 0)
     await seedUser(userId)
@@ -202,14 +202,41 @@ describe('enrichCatch', () => {
     // site service returns no candidates within range
     const fetchFn = routedFetch({ weatherFrom: caughtAt - 6 * HOUR_MS, weatherTo: caughtAt })
     const status = await enrichCatch(env.DB, fetchFn, 'cat_nogauge')
-    expect(status).toBe('partial')
+    // 'partial' makes the queue retry five times. A water with no gauge within 15 km will never
+    // grow one, and the founder's own waters are exactly that (ADR-0008), so this must not retry.
+    expect(status).toBe('done')
 
-    const row = await env.DB.prepare('SELECT water_temp_c, discharge_cms, air_temp_c FROM conditions WHERE catch_id = ?')
+    const row = await env.DB.prepare(
+      'SELECT water_temp_c, water_temp_source, discharge_cms, air_temp_c, source_meta FROM conditions WHERE catch_id = ?',
+    )
       .bind('cat_nogauge')
-      .first<{ water_temp_c: number | null; discharge_cms: number | null; air_temp_c: number }>()
-    expect(row!.water_temp_c).toBeNull()
+      .first<{ water_temp_c: number | null; water_temp_source: string | null; discharge_cms: number | null; air_temp_c: number; source_meta: string }>()
     expect(row!.discharge_cms).toBeNull()
     expect(row!.air_temp_c).toBe(22) // weather still succeeded independently
+    // The absence is recorded rather than silently indistinguishable from a failed fetch.
+    expect(JSON.parse(row!.source_meta).gauge).toBe('none-in-range')
+    // With no gauge temperature, the model fills in from air temp and says so.
+    expect(row!.water_temp_c).toBe(22)
+    expect(row!.water_temp_source).toBe('modeled')
+  })
+
+  it("prefers the angler's own reading over the model", async () => {
+    const userId = 'usr_measured'
+    const caughtAt = Date.UTC(2026, 5, 1, 14, 0)
+    await seedUser(userId)
+    await seedTrip('trp_measured', userId, caughtAt - HOUR_MS, null, null)
+    await seedCatch('cat_measured', userId, 'trp_measured', caughtAt, 36.16, -86.78)
+    await env.DB.prepare('UPDATE trips SET water_temp_c = ? WHERE id = ?').bind(18.5, 'trp_measured').run()
+
+    const fetchFn = routedFetch({ weatherFrom: caughtAt - 6 * HOUR_MS, weatherTo: caughtAt })
+    expect(await enrichCatch(env.DB, fetchFn, 'cat_measured')).toBe('done')
+
+    const row = await env.DB.prepare('SELECT water_temp_c, water_temp_source FROM conditions WHERE catch_id = ?')
+      .bind('cat_measured')
+      .first<{ water_temp_c: number; water_temp_source: string }>()
+    // 18.5 measured, not the 22 the air-temp model would have produced.
+    expect(row!.water_temp_c).toBe(18.5)
+    expect(row!.water_temp_source).toBe('measured')
   })
 
   it('no water body at all -> done as long as weather succeeds (nothing to gauge-match)', async () => {

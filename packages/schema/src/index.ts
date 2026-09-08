@@ -8,6 +8,7 @@
 // - NULLable columns are `.nullable()`; enum-like TEXT columns are z.enum.
 import { z } from 'zod'
 export { usgsPageSchema, usgsSeriesFeatureSchema, usgsReadingFeatureSchema } from './usgs'
+export { nwpsGaugeSchema, nwpsStageflowSchema } from './nwps'
 
 export const SCHEMA_VERSION = 1
 
@@ -46,6 +47,8 @@ export const waterBodySchema = z.object({
   centroid_lat: z.number().nullable(),
   centroid_lng: z.number().nullable(),
   usgs_gauge_id: z.string().nullable(),
+  // NOAA NWPS pool-gauge handle (e.g. 'NRST1'). Set explicitly, never by proximity (ADR-0008).
+  nwps_gauge_id: z.string().nullable(),
   is_home: sqliteBool,
 })
 export type WaterBody = z.infer<typeof waterBodySchema>
@@ -81,6 +84,8 @@ export const tripSchema = z.object({
   auto_created: sqliteBool,
   planned: sqliteBool,
   notes: z.string().nullable(),
+  // Angler-measured surface temp for the outing; beats any model (ADR-0008).
+  water_temp_c: z.number().nullable(),
   client_id: z.string().nullable(), // client ULID: offline dedupe, idempotent sync
 })
 export type Trip = z.infer<typeof tripSchema>
@@ -109,6 +114,9 @@ export type Catch = z.infer<typeof catchSchema>
 
 export const pressureTrendSchema = z.enum(['falling', 'stable', 'rising'])
 
+// Where conditions.water_temp_c came from, so Epic 4 can weight a measurement above a guess.
+export const waterTempSourceSchema = z.enum(['measured', 'gauge', 'modeled'])
+
 export const conditionsSchema = z.object({
   id: z.string(),
   user_id: z.string(),
@@ -124,7 +132,10 @@ export const conditionsSchema = z.object({
   moon_phase: z.number().min(0).max(1).nullable(), // 0..1 (0 = new)
   minutes_from_sunrise: z.number().int().nullable(),
   water_temp_c: z.number().nullable(),
+  water_temp_source: waterTempSourceSchema.nullable(),
   discharge_cms: z.number().nullable(),
+  pool_elevation_ft: z.number().nullable(), // reservoir level (NWPS)
+  tailwater_ft: z.number().nullable(),      // below-dam stage: a generation indicator
   season: z.string().nullable(),
   source_meta: z.string().nullable(),
   created_at: timestamp,

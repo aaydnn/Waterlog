@@ -37,6 +37,7 @@ describe('getActiveTrip', () => {
         auto_created: 0,
         planned: 0,
         notes: null,
+        water_temp_c: null,
         synced_at: null,
       },
       {
@@ -49,6 +50,7 @@ describe('getActiveTrip', () => {
         auto_created: 0,
         planned: 0,
         notes: null,
+        water_temp_c: null,
         synced_at: null,
       },
       {
@@ -61,6 +63,7 @@ describe('getActiveTrip', () => {
         auto_created: 0,
         planned: 0,
         notes: null,
+        water_temp_c: null,
         synced_at: null,
       },
     ])
@@ -92,6 +95,7 @@ describe('startTrip', () => {
       auto_created: 0,
       planned: 0,
       notes: null,
+      water_temp_c: null,
       synced_at: null,
     })
 
@@ -115,11 +119,12 @@ describe('endActiveTrip', () => {
       auto_created: 0,
       planned: 0,
       notes: null,
+      water_temp_c: null,
       synced_at: null,
     })
 
     await endActiveTrip(engine, db)
-    expect(engine.endTrip).toHaveBeenCalledWith('active', expect.any(Number))
+    expect(engine.endTrip).toHaveBeenCalledWith('active', expect.any(Number), null)
   })
 
   it('is a no-op when there is no active trip', async () => {
@@ -139,6 +144,7 @@ describe('tripReferenceFor', () => {
     auto_created: 0 as const,
     planned: 0 as const,
     notes: null,
+    water_temp_c: null,
     synced_at: null,
   }
 

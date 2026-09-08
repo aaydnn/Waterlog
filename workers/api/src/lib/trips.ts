@@ -6,11 +6,13 @@ import type { UpsertResult } from './upsert-result'
 
 export const tripCreateInput = tripSchema
   .omit({ id: true, user_id: true, created_at: true, updated_at: true, deleted_at: true, client_id: true })
-  .extend({ client_id: z.string().min(1) })
+  // water_temp_c defaults rather than being required: it is optional data an angler may never
+  // record, and already-deployed clients don't send the field at all.
+  .extend({ client_id: z.string().min(1), water_temp_c: z.number().nullish().default(null) })
 export type TripCreateInput = z.infer<typeof tripCreateInput>
 
 const TRIP_COLUMNS =
-  'id, user_id, water_body_id, started_at, ended_at, auto_created, planned, notes, created_at, updated_at, deleted_at, client_id'
+  'id, user_id, water_body_id, started_at, ended_at, auto_created, planned, notes, water_temp_c, created_at, updated_at, deleted_at, client_id'
 
 /** Idempotent by client_id: INSERT ... ON CONFLICT DO NOTHING, then SELECT the canonical row
  * (ADR-0003) — server always assigns id, replaying a batch twice never duplicates. `isNew`
@@ -24,7 +26,7 @@ export async function upsertTripByClientId(
   const now = Date.now()
   const result = await db
     .prepare(
-      `INSERT INTO trips (${TRIP_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?) ON CONFLICT(client_id) DO NOTHING`,
+      `INSERT INTO trips (${TRIP_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?) ON CONFLICT(client_id) DO NOTHING`,
     )
     .bind(
       newId(),
@@ -35,6 +37,7 @@ export async function upsertTripByClientId(
       input.auto_created,
       input.planned,
       input.notes,
+      input.water_temp_c,
       now,
       now,
       input.client_id,
@@ -67,6 +70,7 @@ export async function upsertOrphanTrip(
     auto_created: 1,
     planned: 0,
     notes: null,
+    water_temp_c: null,
   })
 }
 
@@ -86,10 +90,11 @@ export async function endTrip(
   userId: string,
   id: string,
   endedAt: number,
+  waterTempC: number | null = null,
 ): Promise<UpsertResult<Trip> | null> {
   const result = await db
-    .prepare('UPDATE trips SET ended_at = ?, updated_at = ? WHERE id = ? AND user_id = ? AND ended_at IS NULL')
-    .bind(endedAt, Date.now(), id, userId)
+    .prepare('UPDATE trips SET ended_at = ?, updated_at = ?, water_temp_c = COALESCE(?, water_temp_c) WHERE id = ? AND user_id = ? AND ended_at IS NULL')
+    .bind(endedAt, Date.now(), waterTempC, id, userId)
     .run()
   const row = await getTripById(db, userId, id)
   if (!row) return null

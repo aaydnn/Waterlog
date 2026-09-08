@@ -28,7 +28,7 @@ export interface SyncEngine {
   enqueueCatch(draft: CatchDraft): Promise<string>
   /** `local_id` from enqueueTrip(). Always applies locally right away; if the trip has already
    * synced, also queues the dedicated end-trip call (ADR-0003 — /api/sync can't apply updates). */
-  endTrip(localId: string, endedAt: number): Promise<void>
+  endTrip(localId: string, endedAt: number, waterTempC?: number | null): Promise<void>
   flush(): Promise<SyncResult>
 }
 
@@ -50,15 +50,15 @@ export class WebSyncEngine implements SyncEngine {
     return row.local_id
   }
 
-  async endTrip(localId: string, endedAt: number): Promise<void> {
+  async endTrip(localId: string, endedAt: number, waterTempC: number | null = null): Promise<void> {
     const trip = await this.db.trips.get(localId)
     if (!trip) throw new Error(`endTrip: no local trip ${localId}`)
 
-    await this.db.trips.update(localId, { ended_at: endedAt })
+    await this.db.trips.update(localId, { ended_at: endedAt, water_temp_c: waterTempC ?? trip.water_temp_c })
     if (trip.id) {
       // Already synced — /api/sync only inserts, so the end has to go through the dedicated
       // endpoint. Queue it; flush() drains this alongside the regular batch.
-      await this.db.pendingTripEnds.put({ trip_id: trip.id, ended_at: endedAt })
+      await this.db.pendingTripEnds.put({ trip_id: trip.id, ended_at: endedAt, water_temp_c: waterTempC })
     }
     // else: unsynced — the ended_at just written above rides along in this trip's first
     // INSERT, no separate call needed.
@@ -70,7 +70,7 @@ export class WebSyncEngine implements SyncEngine {
 
     for (const end of await this.db.pendingTripEnds.toArray()) {
       try {
-        await apiClient.endTrip(end.trip_id, end.ended_at)
+        await apiClient.endTrip(end.trip_id, end.ended_at, end.water_temp_c)
         await this.db.pendingTripEnds.delete(end.trip_id)
         pushed += 1
       } catch {

@@ -76,10 +76,10 @@ export const apiClient = {
   listLures: () => request<{ lures: Lure[] }>('/api/lures'),
   createLure: (body: LureCreateRequest) =>
     request<{ lure: Lure }>('/api/lures', { method: 'POST', body: JSON.stringify(body) }),
-  endTrip: (tripId: string, endedAt: number) =>
+  endTrip: (tripId: string, endedAt: number, waterTempC: number | null = null) =>
     request<{ trip: Trip }>(`/api/trips/${tripId}/end`, {
       method: 'PATCH',
-      body: JSON.stringify({ ended_at: endedAt }),
+      body: JSON.stringify({ ended_at: endedAt, water_temp_c: waterTempC }),
     }),
   uploadPhoto: (blob: Blob) =>
     request<{ photo_key: string }>('/api/photos', {

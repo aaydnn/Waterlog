@@ -1,13 +1,16 @@
 import { moonPhaseAt, minutesFromSunrise } from './astro'
 import { newId } from './ids'
-import { fetchHourlyWeather, nearestPoint } from './open-meteo'
+import { fetchHourlyWeather, nearestPoint, type HourlyWeatherPoint } from './open-meteo'
+import { fetchPoolElevation } from './nwps'
 import { classifyPressureTrend, type PressureTrend } from './pressure'
 import { seasonFor, type Season } from './season'
 import { fetchGaugeReading, findNearestGauge } from './usgs'
+import { estimateWaterTempC, WINDOW_HOURS } from './water-temp'
 
 const HOUR_MS = 60 * 60 * 1000
 
 export type EnrichStatus = 'done' | 'partial'
+type WaterTempSource = 'measured' | 'gauge' | 'modeled'
 
 interface Location {
   lat: number
@@ -24,10 +27,21 @@ interface ConditionsFields {
   moon_phase: number
   minutes_from_sunrise: number | null
   water_temp_c: number | null
+  water_temp_source: WaterTempSource | null
   discharge_cms: number | null
+  pool_elevation_ft: number | null
+  tailwater_ft: number | null
   season: Season
   source_meta: string
   status: EnrichStatus
+}
+
+/** The gauges configured for a water body. `usgsAttempted` distinguishes "nothing to look for"
+ * from "looked and came up empty", which decides whether a lookup is worth repeating. */
+interface GaugeConfig {
+  usgsId: string | null
+  usgsAttempted: boolean
+  nwpsLid: string | null
 }
 
 /** A water body's cached centroid, falling back to any GPS-tagged catch on the trip — most
@@ -56,11 +70,12 @@ async function resolveTripLocation(db: D1Database, tripId: string, userId: strin
   return anyCatch ?? null
 }
 
-/** Resolves (and caches) the gauge to use for a water body, or null if there's nothing to try
- * (no water body, or none found within range — packet §07: coverage is nullable, never
- * blocking). `attempted` distinguishes "nothing to look for" from "looked and came up empty",
- * which is what decides `done` vs `partial`. */
-async function resolveGauge(
+/** Resolves (and caches) the USGS gauge to use for a water body, and reads its configured NWPS
+ * pool gauge. The NWPS handle is never discovered by proximity: pool elevation is uniform across
+ * a reservoir, so the correct gauge is the one at that lake's dam, which can sit far outside any
+ * sane radius while a *neighbouring* reservoir's dam sits closer (ADR-0008). It is set explicitly
+ * on the water body instead. */
+async function resolveGauges(
   db: D1Database,
   fetchFn: typeof fetch,
   userId: string,
@@ -68,14 +83,17 @@ async function resolveGauge(
   location: Location | null,
   atMs: number,
   apiKey?: string,
-): Promise<{ gaugeId: string | null; attempted: boolean }> {
-  if (!waterBodyId || !location) return { gaugeId: null, attempted: false }
+): Promise<GaugeConfig> {
+  if (!waterBodyId) return { usgsId: null, usgsAttempted: false, nwpsLid: null }
 
   const wb = await db
-    .prepare('SELECT usgs_gauge_id FROM water_bodies WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
+    .prepare('SELECT usgs_gauge_id, nwps_gauge_id FROM water_bodies WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
     .bind(waterBodyId, userId)
-    .first<{ usgs_gauge_id: string | null }>()
-  if (wb?.usgs_gauge_id) return { gaugeId: wb.usgs_gauge_id, attempted: true }
+    .first<{ usgs_gauge_id: string | null; nwps_gauge_id: string | null }>()
+  const nwpsLid = wb?.nwps_gauge_id ?? null
+
+  if (wb?.usgs_gauge_id) return { usgsId: wb.usgs_gauge_id, usgsAttempted: true, nwpsLid }
+  if (!location) return { usgsId: null, usgsAttempted: false, nwpsLid }
 
   const nearest = await findNearestGauge(fetchFn, location.lat, location.lng, 15, apiKey, atMs)
   if (nearest) {
@@ -84,17 +102,18 @@ async function resolveGauge(
       .bind(nearest.siteId, waterBodyId, userId)
       .run()
   }
-  return { gaugeId: nearest?.siteId ?? null, attempted: true }
+  return { usgsId: nearest?.siteId ?? null, usgsAttempted: true, nwpsLid }
 }
 
 async function computeConditionsAt(
   fetchFn: typeof fetch,
   atMs: number,
   location: Location | null,
-  gauge: { gaugeId: string | null; attempted: boolean },
+  gauges: GaugeConfig,
   apiKey?: string,
+  measuredWaterTempC: number | null = null,
 ): Promise<ConditionsFields> {
-  const sources: Record<string, boolean> = {}
+  const sources: Record<string, boolean | string> = {}
   let weatherOk = false
   let air_temp_c = null,
     cloud_pct = null,
@@ -103,10 +122,13 @@ async function computeConditionsAt(
     pressure_hpa = null
   let pressure_trend: PressureTrend | null = null
   let minutes_from_sunrise: number | null = null
+  let points: HourlyWeatherPoint[] | null = null
 
   if (location) {
     minutes_from_sunrise = minutesFromSunrise(atMs, location.lat, location.lng)
-    const points = await fetchHourlyWeather(fetchFn, location.lat, location.lng, atMs - 6 * HOUR_MS, atMs)
+    // Reaches back far enough to feed the water-temperature model as well as the six-hour
+    // pressure trend; Open-Meteo bills this the same as the shorter window (one request).
+    points = await fetchHourlyWeather(fetchFn, location.lat, location.lng, atMs - WINDOW_HOURS * HOUR_MS, atMs)
     if (points) {
       const now = nearestPoint(points, atMs)
       const sixAgo = nearestPoint(points, atMs - 6 * HOUR_MS)
@@ -125,18 +147,57 @@ async function computeConditionsAt(
     sources.weather = weatherOk
   }
 
-  let water_temp_c = null,
-    discharge_cms = null
-  let gaugeOk = !gauge.attempted
-  if (gauge.attempted) {
-    const reading = gauge.gaugeId ? await fetchGaugeReading(fetchFn, gauge.gaugeId, atMs, apiKey) : null
-    if (reading) {
-      water_temp_c = reading.waterTempC
-      discharge_cms = reading.dischargeCms
-      gaugeOk = true
+  // A lookup that found no gauge in range is a permanent fact about this location, not a
+  // transient failure — retrying it forever burns five attempts per job on every gaugeless
+  // water. Only a fetch against a gauge we actually have can fail in a way worth repeating.
+  let water_temp_c: number | null = null
+  let discharge_cms: number | null = null
+  let waterOk = true
+  if (gauges.usgsAttempted) {
+    if (gauges.usgsId) {
+      const reading = await fetchGaugeReading(fetchFn, gauges.usgsId, atMs, apiKey)
+      if (reading) {
+        water_temp_c = reading.waterTempC
+        discharge_cms = reading.dischargeCms
+        sources.gauge = true
+      } else {
+        waterOk = false
+        sources.gauge = false
+      }
+    } else {
+      sources.gauge = 'none-in-range'
     }
-    sources.gauge = gaugeOk
   }
+
+  let pool_elevation_ft: number | null = null
+  const tailwater_ft: number | null = null
+  if (gauges.nwpsLid) {
+    const pool = await fetchPoolElevation(fetchFn, gauges.nwpsLid, atMs)
+    if (pool) {
+      pool_elevation_ft = pool.poolFt
+      sources.pool = true
+    } else {
+      waterOk = false
+      sources.pool = false
+    }
+  }
+
+  // Precedence: what the angler measured, then what a gauge read, then the model. A measurement
+  // is the actual water at the actual time and always wins (ADR-0008).
+  let water_temp_source: WaterTempSource | null = null
+  if (measuredWaterTempC !== null) {
+    water_temp_c = measuredWaterTempC
+    water_temp_source = 'measured'
+  } else if (water_temp_c !== null) {
+    water_temp_source = 'gauge'
+  } else if (points) {
+    const modeled = estimateWaterTempC(points, atMs)
+    if (modeled !== null) {
+      water_temp_c = modeled
+      water_temp_source = 'modeled'
+    }
+  }
+  if (water_temp_source !== null) sources.water_temp = water_temp_source
 
   return {
     air_temp_c,
@@ -148,15 +209,47 @@ async function computeConditionsAt(
     moon_phase: moonPhaseAt(new Date(atMs)),
     minutes_from_sunrise,
     water_temp_c,
+    water_temp_source,
     discharge_cms,
+    pool_elevation_ft,
+    tailwater_ft,
     season: seasonFor(new Date(atMs), location?.lat ?? null),
     source_meta: JSON.stringify(sources),
-    status: weatherOk && gaugeOk ? 'done' : 'partial',
+    status: weatherOk && waterOk ? 'done' : 'partial',
   }
 }
 
 const CONDITIONS_COLUMNS =
-  'id, user_id, catch_id, trip_id, hour_bucket, air_temp_c, cloud_pct, wind_kph, precip_mm, pressure_hpa, pressure_trend, moon_phase, minutes_from_sunrise, water_temp_c, discharge_cms, season, source_meta, created_at'
+  'id, user_id, catch_id, trip_id, hour_bucket, air_temp_c, cloud_pct, wind_kph, precip_mm, pressure_hpa, pressure_trend, moon_phase, minutes_from_sunrise, water_temp_c, water_temp_source, discharge_cms, pool_elevation_ft, tailwater_ft, season, source_meta, created_at'
+
+const CONFLICT_UPDATE = `air_temp_c = excluded.air_temp_c, cloud_pct = excluded.cloud_pct, wind_kph = excluded.wind_kph,
+         precip_mm = excluded.precip_mm, pressure_hpa = excluded.pressure_hpa, pressure_trend = excluded.pressure_trend,
+         moon_phase = excluded.moon_phase, minutes_from_sunrise = excluded.minutes_from_sunrise,
+         water_temp_c = excluded.water_temp_c, water_temp_source = excluded.water_temp_source,
+         discharge_cms = excluded.discharge_cms, pool_elevation_ft = excluded.pool_elevation_ft,
+         tailwater_ft = excluded.tailwater_ft, season = excluded.season, source_meta = excluded.source_meta`
+
+/** The measured/derived values, in CONDITIONS_COLUMNS order after the identity columns. */
+function fieldBindings(fields: ConditionsFields): (string | number | null)[] {
+  return [
+    fields.air_temp_c,
+    fields.cloud_pct,
+    fields.wind_kph,
+    fields.precip_mm,
+    fields.pressure_hpa,
+    fields.pressure_trend,
+    fields.moon_phase,
+    fields.minutes_from_sunrise,
+    fields.water_temp_c,
+    fields.water_temp_source,
+    fields.discharge_cms,
+    fields.pool_elevation_ft,
+    fields.tailwater_ft,
+    fields.season,
+    fields.source_meta,
+    Date.now(),
+  ]
+}
 
 /** Enriches one catch (packet §07/§10). Idempotent across queue redelivery: `ON CONFLICT(catch_id)
  * DO UPDATE` means a retried job overwrites the same row instead of duplicating it. */
@@ -168,45 +261,24 @@ export async function enrichCatch(db: D1Database, fetchFn: typeof fetch, catchId
   if (!catchRow) throw new Error(`enrichCatch: catch ${catchId} not found`)
 
   const trip = await db
-    .prepare('SELECT water_body_id FROM trips WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
+    .prepare('SELECT water_body_id, water_temp_c FROM trips WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
     .bind(catchRow.trip_id, catchRow.user_id)
-    .first<{ water_body_id: string | null }>()
+    .first<{ water_body_id: string | null; water_temp_c: number | null }>()
 
   const location: Location | null =
     catchRow.lat != null && catchRow.lng != null
       ? { lat: catchRow.lat, lng: catchRow.lng }
       : await resolveTripLocation(db, catchRow.trip_id, catchRow.user_id)
-  const gauge = await resolveGauge(db, fetchFn, catchRow.user_id, trip?.water_body_id ?? null, location, catchRow.caught_at, apiKey)
-  const fields = await computeConditionsAt(fetchFn, catchRow.caught_at, location, gauge, apiKey)
+  const gauges = await resolveGauges(db, fetchFn, catchRow.user_id, trip?.water_body_id ?? null, location, catchRow.caught_at, apiKey)
+  const fields = await computeConditionsAt(fetchFn, catchRow.caught_at, location, gauges, apiKey, trip?.water_temp_c ?? null)
 
   await db
     .prepare(
-      `INSERT INTO conditions (${CONDITIONS_COLUMNS}) VALUES (?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO conditions (${CONDITIONS_COLUMNS}) VALUES (?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(catch_id) WHERE catch_id IS NOT NULL DO UPDATE SET
-         air_temp_c = excluded.air_temp_c, cloud_pct = excluded.cloud_pct, wind_kph = excluded.wind_kph,
-         precip_mm = excluded.precip_mm, pressure_hpa = excluded.pressure_hpa, pressure_trend = excluded.pressure_trend,
-         moon_phase = excluded.moon_phase, minutes_from_sunrise = excluded.minutes_from_sunrise,
-         water_temp_c = excluded.water_temp_c, discharge_cms = excluded.discharge_cms,
-         season = excluded.season, source_meta = excluded.source_meta`,
+         ${CONFLICT_UPDATE}`,
     )
-    .bind(
-      newId(),
-      catchRow.user_id,
-      catchId,
-      fields.air_temp_c,
-      fields.cloud_pct,
-      fields.wind_kph,
-      fields.precip_mm,
-      fields.pressure_hpa,
-      fields.pressure_trend,
-      fields.moon_phase,
-      fields.minutes_from_sunrise,
-      fields.water_temp_c,
-      fields.discharge_cms,
-      fields.season,
-      fields.source_meta,
-      Date.now(),
-    )
+    .bind(newId(), catchRow.user_id, catchId, ...fieldBindings(fields))
     .run()
 
   await db.prepare('UPDATE catches SET enrich_status = ?, updated_at = ? WHERE id = ?').bind(fields.status, Date.now(), catchId).run()
@@ -224,49 +296,27 @@ export async function enrichTripHours(
   apiKey?: string,
 ): Promise<EnrichStatus> {
   const trip = await db
-    .prepare('SELECT user_id, water_body_id FROM trips WHERE id = ?')
+    .prepare('SELECT user_id, water_body_id, water_temp_c FROM trips WHERE id = ?')
     .bind(tripId)
-    .first<{ user_id: string; water_body_id: string | null }>()
+    .first<{ user_id: string; water_body_id: string | null; water_temp_c: number | null }>()
   if (!trip) throw new Error(`enrichTripHours: trip ${tripId} not found`)
 
   const location = await resolveTripLocation(db, tripId, trip.user_id)
-  const gauge = await resolveGauge(db, fetchFn, trip.user_id, trip.water_body_id, location, (hourBuckets[0] ?? Math.floor(Date.now() / HOUR_MS)) * HOUR_MS, apiKey)
+  const gauges = await resolveGauges(db, fetchFn, trip.user_id, trip.water_body_id, location, (hourBuckets[0] ?? Math.floor(Date.now() / HOUR_MS)) * HOUR_MS, apiKey)
 
   let overallStatus: EnrichStatus = 'done'
   for (const hourBucket of hourBuckets) {
     const atMs = hourBucket * HOUR_MS
-    const fields = await computeConditionsAt(fetchFn, atMs, location, gauge, apiKey)
+    const fields = await computeConditionsAt(fetchFn, atMs, location, gauges, apiKey, trip.water_temp_c)
     if (fields.status === 'partial') overallStatus = 'partial'
 
     await db
       .prepare(
-        `INSERT INTO conditions (${CONDITIONS_COLUMNS}) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO conditions (${CONDITIONS_COLUMNS}) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(trip_id, hour_bucket) WHERE trip_id IS NOT NULL AND hour_bucket IS NOT NULL DO UPDATE SET
-           air_temp_c = excluded.air_temp_c, cloud_pct = excluded.cloud_pct, wind_kph = excluded.wind_kph,
-           precip_mm = excluded.precip_mm, pressure_hpa = excluded.pressure_hpa, pressure_trend = excluded.pressure_trend,
-           moon_phase = excluded.moon_phase, minutes_from_sunrise = excluded.minutes_from_sunrise,
-           water_temp_c = excluded.water_temp_c, discharge_cms = excluded.discharge_cms,
-           season = excluded.season, source_meta = excluded.source_meta`,
+           ${CONFLICT_UPDATE}`,
       )
-      .bind(
-        newId(),
-        trip.user_id,
-        tripId,
-        hourBucket,
-        fields.air_temp_c,
-        fields.cloud_pct,
-        fields.wind_kph,
-        fields.precip_mm,
-        fields.pressure_hpa,
-        fields.pressure_trend,
-        fields.moon_phase,
-        fields.minutes_from_sunrise,
-        fields.water_temp_c,
-        fields.discharge_cms,
-        fields.season,
-        fields.source_meta,
-        Date.now(),
-      )
+      .bind(newId(), trip.user_id, tripId, hourBucket, ...fieldBindings(fields))
       .run()
   }
   return overallStatus

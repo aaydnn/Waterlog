@@ -20,6 +20,7 @@ export async function startTrip(engine: SyncEngine, db: WaterlogDb): Promise<Loc
     auto_created: 0,
     planned: 0,
     notes: null,
+    water_temp_c: null,
   }
   const localId = await engine.enqueueTrip(draft)
   const trip = await db.trips.get(localId)
@@ -28,10 +29,14 @@ export async function startTrip(engine: SyncEngine, db: WaterlogDb): Promise<Loc
 }
 
 /** No-ops if there's no active trip. */
-export async function endActiveTrip(engine: SyncEngine, db: WaterlogDb): Promise<void> {
+export async function endActiveTrip(
+  engine: SyncEngine,
+  db: WaterlogDb,
+  waterTempC: number | null = null,
+): Promise<void> {
   const active = await getActiveTrip(db)
   if (!active) return
-  await engine.endTrip(active.local_id, Date.now())
+  await engine.endTrip(active.local_id, Date.now(), waterTempC)
 }
 
 /** The identifier a catch should reference for "the current trip": the server id once synced,

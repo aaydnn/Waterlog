@@ -87,3 +87,56 @@
     animation: none;
   }
 }
+
+/* Optional water-temp entry, sent when the trip ends. Sits between the status and End trip. */
+.trip-banner__temp {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-right: 4px;
+}
+
+.trip-banner__temp-label {
+  font-size: 12px;
+  color: var(--bone-72);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.trip-banner__temp-input {
+  width: 3.5ch;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--bone);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  padding: 2px 0;
+  text-align: center;
+}
+
+/* The spinners would only add mis-taps on a phone at 5mph. */
+.trip-banner__temp-input::-webkit-outer-spin-button,
+.trip-banner__temp-input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.trip-banner__temp-input {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.trip-banner__temp-input:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 2px;
+}
+
+.trip-banner__temp-unit {
+  font-size: 12px;
+  color: var(--bone-72);
+}

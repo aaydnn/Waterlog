@@ -59,6 +59,7 @@ describe('TripBanner', () => {
       client_id: 'c1',
       id: null,
       water_body_id: null,
+      water_temp_c: null,
       started_at: Date.now(),
       ended_at: null,
       auto_created: 0,
@@ -72,7 +73,7 @@ describe('TripBanner', () => {
     const endButton = await screen.findByRole('button', { name: 'End trip' })
     await user.click(endButton)
 
-    expect(engine.endTrip).toHaveBeenCalledWith('active1', expect.any(Number))
+    expect(engine.endTrip).toHaveBeenCalledWith('active1', expect.any(Number), null)
     expect(await screen.findByRole('button', { name: 'Start trip' })).toBeInTheDocument()
   })
 })

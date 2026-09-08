@@ -36,6 +36,8 @@ export interface LocalCatch extends CatchFields {
 export interface PendingTripEnd {
   trip_id: string
   ended_at: number
+  /** The angler's own reading, in Celsius. null when they did not take one. */
+  water_temp_c: number | null
 }
 
 export class WaterlogDb extends Dexie {
