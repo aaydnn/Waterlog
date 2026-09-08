@@ -13,12 +13,23 @@ function freshDb(): WaterlogDb {
   return new WaterlogDb(`test-capture-flow-${dbCounter}`)
 }
 
-function fakeEngine(): SyncEngine {
+/** Writes to the same Dexie db the component reads, so the toast's "did this catch actually
+ * sync?" check exercises the real path. `reachesServer: false` models being out of cell range:
+ * the row stays queued with `synced_at === null`. */
+function fakeEngine(db: WaterlogDb, { reachesServer = true } = {}): SyncEngine {
   return {
     enqueueTrip: vi.fn<(draft: TripDraft) => Promise<string>>().mockResolvedValue('trip_local_1'),
-    enqueueCatch: vi.fn<(draft: CatchDraft) => Promise<string>>().mockResolvedValue('catch_local_1'),
+    enqueueCatch: vi.fn<(draft: CatchDraft) => Promise<string>>().mockImplementation(async (draft) => {
+      await db.catches.put({ ...draft, local_id: 'catch_local_1', client_id: 'catch_client_1', id: null, synced_at: null })
+      return 'catch_local_1'
+    }),
     endTrip: vi.fn<(localId: string, endedAt: number) => Promise<void>>(),
-    flush: vi.fn<() => Promise<SyncResult>>().mockResolvedValue({ pushed: 0, failed: 0 }),
+    flush: vi.fn<() => Promise<SyncResult>>().mockImplementation(async () => {
+      const queued = await db.catches.filter((c) => c.synced_at === null).toArray()
+      if (!reachesServer) return { pushed: 0, failed: queued.length }
+      for (const row of queued) await db.catches.update(row.local_id, { id: `srv_${row.local_id}`, synced_at: Date.now() })
+      return { pushed: queued.length, failed: 0 }
+    }),
   }
 }
 
@@ -47,9 +58,10 @@ afterEach(() => vi.unstubAllGlobals())
 describe('CaptureFlow (F1: ten-second capture)', () => {
   it('logs a catch in exactly 2 taps after the photo — species then a recent lure', async () => {
     mockFetch([{ id: 'lure_1', name: 'War Eagle Spinnerbait' }])
-    const engine = fakeEngine()
+    const db = freshDb()
+    const engine = fakeEngine(db)
     const user = userEvent.setup()
-    render(<CaptureFlow engine={engine} db={freshDb()} resizeImage={async () => new Blob(["resized"])} />)
+    render(<CaptureFlow engine={engine} db={db} resizeImage={async () => new Blob(["resized"])} />)
 
     // Photo capture triggers the flow (not counted as a "tap after photo" per the spec's wording).
     const input = screen.getByLabelText('Take or choose a catch photo')
@@ -69,14 +81,16 @@ describe('CaptureFlow (F1: ten-second capture)', () => {
     expect(draft.lure_id).toBe('lure_1')
     expect(draft.photo_key).toBe('photos/u1/photo.jpg')
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Logged. Enriching conditions…')
+    // The optimistic "Logged." is replaced once the flush confirms the catch reached the server.
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Logged. Enriching conditions…'))
   })
 
   it('logs a catch in 2 taps with no lure selected ("No lure" shortcut)', async () => {
     mockFetch([])
-    const engine = fakeEngine()
+    const db = freshDb()
+    const engine = fakeEngine(db)
     const user = userEvent.setup()
-    render(<CaptureFlow engine={engine} db={freshDb()} resizeImage={async () => new Blob(["resized"])} />)
+    render(<CaptureFlow engine={engine} db={db} resizeImage={async () => new Blob(["resized"])} />)
 
     await user.upload(screen.getByLabelText('Take or choose a catch photo'), fakePhoto)
     await user.click(await screen.findByRole('button', { name: 'Bluegill' }))
@@ -89,9 +103,10 @@ describe('CaptureFlow (F1: ten-second capture)', () => {
 
   it('still logs the catch — without a photo_key — when the photo upload fails offline', async () => {
     mockFetch([], false)
-    const engine = fakeEngine()
+    const db = freshDb()
+    const engine = fakeEngine(db)
     const user = userEvent.setup()
-    render(<CaptureFlow engine={engine} db={freshDb()} resizeImage={async () => new Blob(["resized"])} />)
+    render(<CaptureFlow engine={engine} db={db} resizeImage={async () => new Blob(["resized"])} />)
 
     await user.upload(screen.getByLabelText('Take or choose a catch photo'), fakePhoto)
     await user.click(await screen.findByRole('button', { name: 'Bluegill' }))
@@ -100,14 +115,32 @@ describe('CaptureFlow (F1: ten-second capture)', () => {
     await waitFor(() => expect(engine.enqueueCatch).toHaveBeenCalledTimes(1))
     const draft = (engine.enqueueCatch as ReturnType<typeof vi.fn>).mock.calls[0]![0] as CatchDraft
     expect(draft.photo_key).toBeNull()
-    expect(await screen.findByRole('status')).toHaveTextContent('Logged offline — will sync.')
+    // The catch itself still synced, so enrichment really is running — the toast reports the
+    // catch's fate, not the photo's.
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Logged. Enriching conditions…'))
+  })
+
+  it('says the catch is queued — not enriching — when the catch never reaches the server', async () => {
+    mockFetch([]) // the photo upload succeeds; the sync does not
+    const db = freshDb()
+    const engine = fakeEngine(db, { reachesServer: false })
+    const user = userEvent.setup()
+    render(<CaptureFlow engine={engine} db={db} resizeImage={async () => new Blob(['resized'])} />)
+
+    await user.upload(screen.getByLabelText('Take or choose a catch photo'), fakePhoto)
+    await user.click(await screen.findByRole('button', { name: 'Bluegill' }))
+    await user.click(await screen.findByRole('button', { name: 'No lure' }))
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Logged offline — will sync.'))
+    expect(await db.catches.get('catch_local_1')).toMatchObject({ synced_at: null })
   })
 
   it('searching for a species not in the recents shelf still finds and selects it', async () => {
     mockFetch([])
-    const engine = fakeEngine()
+    const db = freshDb()
+    const engine = fakeEngine(db)
     const user = userEvent.setup()
-    render(<CaptureFlow engine={engine} db={freshDb()} resizeImage={async () => new Blob(["resized"])} />)
+    render(<CaptureFlow engine={engine} db={db} resizeImage={async () => new Blob(["resized"])} />)
 
     await user.upload(screen.getByLabelText('Take or choose a catch photo'), fakePhoto)
     await user.type(await screen.findByLabelText('Search species'), 'walleye')
@@ -142,7 +175,7 @@ describe('CaptureFlow (F1: ten-second capture)', () => {
       notes: null,
       synced_at: Date.now(),
     })
-    const engine = fakeEngine()
+    const engine = fakeEngine(db)
     const user = userEvent.setup()
     render(<CaptureFlow engine={engine} db={db} resizeImage={async () => new Blob(['resized'])} />)
 

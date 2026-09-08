@@ -78,6 +78,8 @@ export function CaptureFlow({
     return () => URL.revokeObjectURL(url)
   }, [photoBlob])
 
+  // Restarts on every toast change so the sync outcome, which lands after the first toast, is
+  // on screen for its full dwell rather than inheriting the remainder of the optimistic one's.
   useEffect(() => {
     if (step !== 'done') return
     const timer = setTimeout(() => {
@@ -87,7 +89,7 @@ export function CaptureFlow({
       setToast(null)
     }, 2500)
     return () => clearTimeout(timer)
-  }, [step])
+  }, [step, toast])
 
   async function onPhotoSelected(file: File) {
     const resized = await resizeImage(file)
@@ -134,10 +136,19 @@ export function CaptureFlow({
       released: null,
       notes: null,
     }
-    await engine.enqueueCatch(draft)
-    setToast(photoKey ? 'Logged. Enriching conditions…' : 'Logged offline — will sync.')
+    const localId = await engine.enqueueCatch(draft)
+    // The catch is safe on the device the instant it's enqueued — say so now, and let the flush
+    // below correct it. The toast reports whether the *catch* reached the server: enrichment
+    // runs off the synced catch, so a failed photo upload doesn't make it "offline", and a
+    // successful one doesn't make it synced.
+    setToast('Logged.')
     setStep('done')
-    void engine.flush()
+    void Promise.resolve(engine.flush())
+      .catch(() => undefined)
+      .then(async () => {
+        const saved = await db.catches.get(localId)
+        setToast(saved?.synced_at ? 'Logged. Enriching conditions…' : 'Logged offline — will sync.')
+      })
   }
 
   async function onQuickAddLure(name: string) {
