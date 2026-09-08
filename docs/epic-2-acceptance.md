@@ -60,13 +60,61 @@ original sync payloads (using existing client IDs), and existing ended trips thr
 their trip-end endpoint. For a large production history, prepare a scoped backfill
 job after identifying the target account and dataset.
 
-## Deferred field validation
+## Field validation on the founder's waters
 
-When the founder chooses TN/SC waters, verify the matched gauge's location, reported
-parameters, freshness, and whether it represents the water actually fished. Record
-missing coverage as an expected limitation, then check one real catch and one skunked
-trip end to end. This checks data usefulness; it is separate from the automated code
-acceptance criteria. No waters were selected or field coverage claimed in this work.
+Waters chosen 2026-09-08: **Norris Lake, TN** and **Lake Oliphant, SC**. Validated live
+against the modern USGS API with `pnpm test:waters-live` (`workers/enrich/test/founder-waters.live.ts`),
+which runs the real `findNearestGauge`/`fetchGaugeReading` adapter, not a mock.
+
+**Result: neither water has usable USGS gauge coverage.** This is recorded as an expected
+limitation, per the packet's instruction to do so.
+
+| Point sampled | Nearest gauge ≤15 km | Reading |
+| --- | --- | --- |
+| Norris — dam | none | — |
+| Norris — lower Clinch arm | none | — |
+| Norris — mid lake | none | — |
+| Norris — OSM centroid | none | — |
+| Norris — Powell arm | none | — |
+| Norris — upper Clinch arm | `USGS-03528000` @ 11.2 km | discharge only |
+| Norris — far NE end | `USGS-03528000` @ 7.7 km | discharge only |
+| Norris — La Follette arm | none | — |
+| Lake Oliphant | `USGS-021473428` @ 14.7 km | discharge only, 0.023 cms |
+
+Six of eight points across Norris Lake — including the dam, mid-lake, and the centroid —
+have no gauge at all. The single reachable station is `CLINCH RIVER ABOVE TAZEWELL, TN`
+(site type: Stream), which measures the river flowing *into* the reservoir from upstream,
+not the lake. For Lake Oliphant the match is `WILDCAT CREEK BELOW ROCK HILL, SC` — a
+29.7 sq mi creek in a different county (York, not Chester) reading 0.023 cms. It does not
+represent the water fished.
+
+**Neither water yields water temperature at any point sampled.** Both matched stations
+carry parameter 00060 (discharge) and not 00010 (temperature). Epic 4 must not assume
+`conditions.water_temp_c` is populated for the founder's own data.
+
+One thing this validated positively: the era filter works. `USGS-021473470`
+(`SOUTH FORK FISHING CREEK BELOW McCONNELLS`) sits 5.3 km from Lake Oliphant — closer than
+the chosen station — but its record ends 2021-10-01, and the adapter correctly skipped the
+discontinued station rather than returning stale data.
+
+### Consequences to address
+
+- **Reservoirs are not gauged the way rivers are.** TVA impoundments like Norris carry TVA
+  instrumentation, not USGS instantaneous series. Gauge matching by proximity will keep
+  coming up empty on exactly the kind of water this product targets.
+- **A no-coverage water makes every job `partial`, which the queue then retries five times.**
+  `computeConditionsAt` sets `gaugeOk = false` when a lookup was attempted and found nothing,
+  and `index.ts` retries any `partial`. Permanent absence of a gauge is currently treated as a
+  transient failure. This is latent today — trips have no `water_body_id` until Epic 3 ships
+  the picker, and `resolveGauge` skips the lookup entirely without one — but it activates the
+  moment a water body is assigned.
+- **The gauge cache is per-water-body, not per-location.** On a lake spanning ~68 km, the
+  first catch that resolves a gauge caches it for every later catch on that water, however
+  far away. On Norris, only the NE corner can resolve one at all.
+
+### Still outstanding
+
+One real catch and one skunked trip end to end, which needs an actual trip.
 
 ## Source references and maintenance
 

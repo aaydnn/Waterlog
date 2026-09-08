@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:usgs-live": "vitest run --config vitest.live.config.ts"
+    "test:usgs-live": "vitest run --config vitest.live.config.ts",
+    "test:waters-live": "vitest run --config vitest.founder.config.ts"
   },
   "dependencies": {
     "@waterlog/schema": "workspace:*",
