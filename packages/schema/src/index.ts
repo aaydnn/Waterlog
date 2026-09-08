@@ -176,3 +176,68 @@ export const patternCacheRowSchema = z.object({
   computed_at: timestamp,
 })
 export type PatternCacheRow = z.infer<typeof patternCacheRowSchema>
+
+// Epic 3: the journal (F3) and free-tier stats (F4) responses. Read-only projections — the
+// server joins the names a card needs so the client never has to fan out per row.
+export const journalEntrySchema = z.object({
+  id: z.string(),
+  caught_at: timestamp,
+  species: z.string(),
+  photo_key: z.string().nullable(),
+  length_mm: z.number().int().nullable(),
+  weight_g: z.number().int().nullable(),
+  released: sqliteBool.nullable(),
+  notes: z.string().nullable(),
+  enrich_status: enrichStatusSchema,
+  lure_id: z.string().nullable(),
+  lure_name: z.string().nullable(),
+  trip_id: z.string(),
+  water_body_id: z.string().nullable(),
+  water_body_name: z.string().nullable(),
+})
+export type JournalEntry = z.infer<typeof journalEntrySchema>
+
+export const journalPageSchema = z.object({
+  entries: z.array(journalEntrySchema),
+  /** Opaque keyset cursor; null when this is the last page. */
+  next_cursor: z.string().nullable(),
+})
+export type JournalPage = z.infer<typeof journalPageSchema>
+
+/** Everything F3's detail view shows for one catch, including the enriched conditions row. */
+export const catchDetailSchema = z.object({
+  catch: catchSchema,
+  trip: tripSchema.nullable(),
+  water_body: waterBodySchema.nullable(),
+  lure: lureSchema.nullable(),
+  conditions: conditionsSchema.nullable(),
+})
+export type CatchDetail = z.infer<typeof catchDetailSchema>
+
+// F4, free tier: totals and simple breakdowns only. Condition correlations are the Pro pattern
+// engine's job (Epic 4) and deliberately absent here.
+export const statsSchema = z.object({
+  totals: z.object({
+    catches: z.number().int(),
+    trips: z.number().int(),
+    /** Ended trips only — an open trip has no duration yet. */
+    hours_on_water: z.number(),
+    /** Ended trips with zero catches: the denominator that makes rates honest (packet §08). */
+    skunked_trips: z.number().int(),
+    species: z.number().int(),
+    waters: z.number().int(),
+  }),
+  by_species: z.array(z.object({ species: z.string(), catches: z.number().int() })),
+  by_month: z.array(
+    z.object({ month: z.string(), catches: z.number().int(), trips: z.number().int() }),
+  ),
+  by_water: z.array(
+    z.object({
+      water_body_id: z.string().nullable(),
+      water_body_name: z.string().nullable(),
+      catches: z.number().int(),
+      trips: z.number().int(),
+    }),
+  ),
+})
+export type Stats = z.infer<typeof statsSchema>

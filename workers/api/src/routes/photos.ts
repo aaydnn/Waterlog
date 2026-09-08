@@ -34,3 +34,25 @@ photoRoutes.post('/', requireAuth, async (c) => {
 
   return c.json({ photo_key: key }, 201)
 })
+
+// The journal renders these. Keys are user-scoped by construction (ADR-0005), so serving one
+// is a prefix check away — never a lookup the client can steer.
+photoRoutes.get('/:key{.+}', requireAuth, async (c) => {
+  // Accepts the stored key as-is (photos/<user>/<file>) so the client can just interpolate
+  // photo_key, and the bare form too.
+  const raw = c.req.param('key')
+  const key = raw.startsWith('photos/') ? raw : `photos/${raw}`
+  const user = c.get('user')
+  if (!key.startsWith(`photos/${user.id}/`)) return c.json({ error: 'not found' }, 404)
+
+  const object = await c.env.PHOTOS.get(key)
+  if (!object) return c.json({ error: 'not found' }, 404)
+
+  return new Response(object.body, {
+    headers: {
+      'content-type': object.httpMetadata?.contentType ?? 'application/octet-stream',
+      'cache-control': 'private, max-age=31536000, immutable',
+      etag: object.httpEtag,
+    },
+  })
+})
