@@ -74,8 +74,21 @@ authRoutes.get('/google/callback', async (c) => {
   const { code, state } = c.req.query()
   const expectedState = getCookie(c, STATE_COOKIE)
   deleteCookie(c, STATE_COOKIE, { path: '/' })
-  if (!code || !state || !expectedState || state !== expectedState) {
-    return c.json({ error: 'invalid oauth state' }, 401)
+  // Distinguished rather than collapsed into one message: each case has a different cause and
+  // a different fix, and they are otherwise indistinguishable from the client.
+  if (!code || !state) {
+    return c.json({ error: 'invalid oauth state: provider did not return a code and state' }, 401)
+  }
+  if (!expectedState) {
+    // The cookie is set on /api/auth/google and must come back on this request. It won't if the
+    // sign-in began in a different browser context (an installed PWA has its own cookie jar, so
+    // a flow that hops out to Safari lands here without it), if site data was cleared mid-flow,
+    // or if more than the cookie's 10 minutes elapsed.
+    return c.json({ error: 'invalid oauth state: no state cookie on the callback' }, 401)
+  }
+  if (state !== expectedState) {
+    // A second /api/auth/google overwrote the first's cookie, so an older tab's callback loses.
+    return c.json({ error: 'invalid oauth state: state did not match the cookie' }, 401)
   }
   if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET) {
     return c.json({ error: 'google oauth not configured' }, 503)
