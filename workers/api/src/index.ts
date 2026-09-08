@@ -6,6 +6,7 @@ import { lureRoutes } from './routes/lures'
 import { photoRoutes } from './routes/photos'
 import { syncRoutes } from './routes/sync'
 import { tripRoutes } from './routes/trips'
+import { waterBodyRoutes } from './routes/water-bodies'
 import { VERSION } from './version'
 
 const app = new Hono<AppEnv>()
@@ -17,6 +18,7 @@ app.route('/api/sync', syncRoutes)
 app.route('/api/photos', photoRoutes)
 app.route('/api/lures', lureRoutes)
 app.route('/api/trips', tripRoutes)
+app.route('/api/water-bodies', waterBodyRoutes)
 
 app.get('/api/me', requireAuth, (c) => c.json({ user: c.get('user') }))
 

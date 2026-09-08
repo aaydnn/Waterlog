@@ -140,3 +140,48 @@
   font-size: 12px;
   color: var(--bone-72);
 }
+
+/* Water picker — only shown when no trip is running, so the running banner stays uncluttered. */
+.trip-banner--idle {
+  flex-wrap: wrap;
+}
+
+.trip-banner__water {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.trip-banner__water-select,
+.trip-banner__water-input {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--bone);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.trip-banner__water-select:focus-visible,
+.trip-banner__water-input:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 2px;
+}
+
+/* The native menu paints with the page's colors, not the banner's. */
+.trip-banner__water-select option {
+  color: var(--bone);
+  background: var(--navy-1);
+}
+
+.trip-banner__error {
+  flex: 1 1 100%;
+  font-size: 12px;
+  color: var(--bone-72);
+}

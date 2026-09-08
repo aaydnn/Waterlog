@@ -1,4 +1,4 @@
-import type { Catch, Lure, Trip } from '@waterlog/schema'
+import type { Catch, Lure, Trip, WaterBody } from '@waterlog/schema'
 
 /** Minimal typed fetch wrapper for the WaterLog API. Feature endpoints are
  * added in Epics 1+; Epic 0 only needs health. */
@@ -48,6 +48,15 @@ export interface LureCreateRequest {
   cost_cents?: number | null
 }
 
+export interface WaterBodyCreateRequest {
+  name: string
+  kind?: 'lake' | 'river' | 'pond' | 'reservoir' | 'saltwater' | null
+  centroid_lat?: number | null
+  centroid_lng?: number | null
+  nwps_gauge_id?: string | null
+  is_home?: 0 | 1
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -77,6 +86,9 @@ export const apiClient = {
   listLures: () => request<{ lures: Lure[] }>('/api/lures'),
   createLure: (body: LureCreateRequest) =>
     request<{ lure: Lure }>('/api/lures', { method: 'POST', body: JSON.stringify(body) }),
+  listWaterBodies: () => request<{ water_bodies: WaterBody[] }>('/api/water-bodies'),
+  createWaterBody: (body: WaterBodyCreateRequest) =>
+    request<{ water_body: WaterBody }>('/api/water-bodies', { method: 'POST', body: JSON.stringify(body) }),
   endTrip: (tripId: string, endedAt: number, waterTempC: number | null = null) =>
     request<{ trip: Trip }>(`/api/trips/${tripId}/end`, {
       method: 'PATCH',

@@ -9,12 +9,16 @@ export async function getActiveTrip(db: WaterlogDb): Promise<LocalTrip | null> {
 }
 
 /** No-ops if a trip is already active, so a double tap can never open two trips. */
-export async function startTrip(engine: SyncEngine, db: WaterlogDb): Promise<LocalTrip> {
+export async function startTrip(
+  engine: SyncEngine,
+  db: WaterlogDb,
+  waterBodyId: string | null = null,
+): Promise<LocalTrip> {
   const existing = await getActiveTrip(db)
   if (existing) return existing
 
   const draft: TripDraft = {
-    water_body_id: null,
+    water_body_id: waterBodyId,
     started_at: Date.now(),
     ended_at: null,
     auto_created: 0,

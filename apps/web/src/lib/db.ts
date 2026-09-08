@@ -1,4 +1,4 @@
-import type { Catch, Lure, Trip } from '@waterlog/schema'
+import type { Catch, Lure, Trip, WaterBody } from '@waterlog/schema'
 import Dexie, { type Table } from 'dexie'
 
 // Local mirrors of the server payload shapes (packages/schema Trip/Catch), plus the bookkeeping
@@ -44,6 +44,7 @@ export class WaterlogDb extends Dexie {
   trips!: Table<LocalTrip, string>
   catches!: Table<LocalCatch, string>
   lures!: Table<Lure, string>
+  waterBodies!: Table<WaterBody, string>
   pendingTripEnds!: Table<PendingTripEnd, string>
 
   constructor(name = 'waterlog') {
@@ -53,6 +54,10 @@ export class WaterlogDb extends Dexie {
       catches: 'local_id, client_id, id, trip_id, synced_at, caught_at',
       lures: 'id, name',
       pendingTripEnds: 'trip_id',
+    })
+    // v2: the angler's waters, mirrored so the trip banner can name and rank them offline.
+    this.version(2).stores({
+      waterBodies: 'id, name',
     })
   }
 }

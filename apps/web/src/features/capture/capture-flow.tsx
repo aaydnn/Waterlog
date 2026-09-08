@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { apiClient } from '../../lib/api-client'
 import type { WaterlogDb } from '../../lib/db'
 import { getDb } from '../../lib/db'
+import { bestEffortPosition } from '../../lib/geo'
 import { resizeImageToBlob } from '../../lib/image'
 import { createLure as createLureRemote, syncLures } from '../../lib/lures'
 import type { CatchDraft, SyncEngine } from '../../lib/sync/sync-engine'
@@ -19,29 +20,6 @@ export interface CaptureFlowProps {
   db?: WaterlogDb
   /** Injectable so component tests don't need a real Canvas/Image decoder. */
   resizeImage?: (file: File) => Promise<Blob>
-}
-
-/** Best-effort GPS fix — never blocks or fails capture (packet principle 5: capture is instant;
- * everything auto-capturable is auto-captured, but nothing waits on it). */
-function bestEffortPosition(timeoutMs = 3000): Promise<{ lat: number; lng: number } | null> {
-  return new Promise((resolve) => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      resolve(null)
-      return
-    }
-    const timer = setTimeout(() => resolve(null), timeoutMs)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        clearTimeout(timer)
-        resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-      },
-      () => {
-        clearTimeout(timer)
-        resolve(null)
-      },
-      { timeout: timeoutMs },
-    )
-  })
 }
 
 /** F1: FAB -> camera -> photo -> species sheet -> lure sheet -> saved. Tapping a recent species

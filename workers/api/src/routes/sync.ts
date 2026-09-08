@@ -6,6 +6,7 @@ import { catchCreateInput, upsertCatchByClientId } from '../lib/catches'
 import { enqueueEnrichment, enqueueTripHours } from '../lib/enrichment'
 import { requireAuth } from '../middleware/require-auth'
 import { getTripById, tripCreateInput, upsertOrphanTrip, upsertTripByClientId } from '../lib/trips'
+import { waterBodyExists } from '../lib/water-bodies'
 
 const syncRequestSchema = z.object({
   trips: z.array(tripCreateInput).default([]),
@@ -31,15 +32,21 @@ syncRoutes.post('/', requireAuth, async (c) => {
   const db = c.env.DB
 
   const resultTrips: Trip[] = []
+  const errors: SyncError[] = []
   const clientTripIds = new Map<string, string>() // this batch's trip client_id -> server trip id
   for (const tripInput of trips) {
+    // The FK only proves the water exists, not that this angler owns it — check before the row
+    // is written rather than letting a trip point at someone else's water.
+    if (tripInput.water_body_id && !(await waterBodyExists(db, user.id, tripInput.water_body_id))) {
+      errors.push({ client_id: tripInput.client_id, message: `water_body_id ${tripInput.water_body_id} not found` })
+      continue
+    }
     const { row: trip } = await upsertTripByClientId(db, user.id, tripInput)
     clientTripIds.set(tripInput.client_id, trip.id)
     resultTrips.push(trip)
   }
 
   const resultCatches: Catch[] = []
-  const errors: SyncError[] = []
   for (const catchInput of catches) {
     let tripId: string
 
