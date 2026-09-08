@@ -22,7 +22,10 @@ authRoutes.post('/magic-link', async (c) => {
   const email = parsed.data.email
 
   const token = await createLoginToken(c.env.DB, email)
-  const verifyUrl = new URL('/api/auth/magic-link/verify', c.req.url)
+  // Built from APP_URL, not c.req.url: in production the request reaches this Worker through
+  // the Pages /api/* proxy, so c.req.url is the *.workers.dev origin. A link to that host would
+  // set the session cookie on the wrong origin and the app would never see it.
+  const verifyUrl = new URL('/api/auth/magic-link/verify', c.env.APP_URL)
   verifyUrl.searchParams.set('token', token)
 
   await getMailer(c.env).send({
@@ -61,7 +64,7 @@ authRoutes.get('/google', (c) => {
   return c.redirect(
     googleAuthorizeUrl({
       clientId: c.env.GOOGLE_CLIENT_ID,
-      redirectUri: new URL('/api/auth/google/callback', c.req.url).toString(),
+      redirectUri: new URL('/api/auth/google/callback', c.env.APP_URL).toString(),
       state,
     }),
   )
@@ -82,7 +85,7 @@ authRoutes.get('/google/callback', async (c) => {
     code,
     clientId: c.env.GOOGLE_CLIENT_ID,
     clientSecret: c.env.GOOGLE_CLIENT_SECRET,
-    redirectUri: new URL('/api/auth/google/callback', c.req.url).toString(),
+    redirectUri: new URL('/api/auth/google/callback', c.env.APP_URL).toString(),
   })
   if (!identity || !identity.emailVerified) {
     return c.json({ error: 'google sign-in failed' }, 401)

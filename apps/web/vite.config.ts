@@ -34,4 +34,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  // Mirrors the Pages Function that proxies /api/* in production, so the client can use the
+  // same relative, same-origin paths in dev. Start the API with `pnpm dev` in workers/api.
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: false,
+      },
+    },
+  },
 })

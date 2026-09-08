@@ -18,8 +18,10 @@ binding = "ENRICH_QUEUE"
 queue = "waterlog-enrich"
 
 [vars]
-# Where the web app lives; used for auth redirects and magic-link URLs.
-APP_URL = "http://localhost:5173"
+# Where the web app lives. Used for auth redirects, magic-link URLs, and the Google OAuth
+# redirect_uri — so it must be the origin the *browser* uses, which is the Pages site that
+# proxies /api/* here, never this Worker's own *.workers.dev host.
+APP_URL = "https://waterlog-web.pages.dev"
 # Auth secrets are placeholders here. In real environments set them with
 #   wrangler secret put GOOGLE_CLIENT_SECRET
 # etc. — never commit real values.
