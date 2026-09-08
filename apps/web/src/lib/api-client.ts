@@ -16,6 +16,7 @@ export interface SyncBatchRequest {
     auto_created: 0 | 1
     planned: 0 | 1
     notes: string | null
+    water_temp_c: number | null
   }>
   catches: Array<{
     client_id: string

@@ -149,6 +149,30 @@ describe('WebSyncEngine.flush', () => {
     expect(updatedCatch!.synced_at).not.toBeNull()
   })
 
+  it("sends the angler's water temperature on a trip that has never synced", async () => {
+    // A trip started and ended offline reaches the server through /api/sync, not the trip-end
+    // endpoint, so the reading has to ride along in this payload. Leaving it out silently
+    // dropped the measurement for every trip ended before its first sync.
+    const db = freshDb()
+    const engine = new WebSyncEngine(db)
+
+    const tripLocalId = await engine.enqueueTrip(tripDraft())
+    await engine.endTrip(tripLocalId, 1_780_003_600_000, 18.3)
+    const pendingTrip = await db.trips.get(tripLocalId)
+    expect(pendingTrip!.id).toBeNull() // never synced, so no dedicated end call was queued
+    expect(await db.pendingTripEnds.count()).toBe(0)
+
+    const fetchSpy = mockFetchOnce({
+      trips: [serverTrip({ id: 'srv_trip_temp', client_id: pendingTrip!.client_id })],
+      catches: [],
+      errors: [],
+    })
+    await engine.flush()
+
+    const sentBody = JSON.parse(fetchSpy.mock.calls[0]![1].body as string)
+    expect(sentBody.trips[0].water_temp_c).toBe(18.3)
+    expect(sentBody.trips[0].ended_at).toBe(1_780_003_600_000)
+  })
   it('omits trip_id on the wire for an orphan catch and mirrors the server-created trip locally', async () => {
     const db = freshDb()
     const engine = new WebSyncEngine(db)

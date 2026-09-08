@@ -100,6 +100,7 @@ export class WebSyncEngine implements SyncEngine {
           auto_created: t.auto_created,
           planned: t.planned,
           notes: t.notes,
+          water_temp_c: t.water_temp_c,
         })),
         catches: pendingCatches.map((c) => ({
           client_id: c.client_id as string,
