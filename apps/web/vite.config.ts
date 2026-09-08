@@ -12,6 +12,12 @@ export default defineConfig({
       // Caching strategy stays minimal in Epic 0: precache the app shell only.
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        // Workbox routes every *navigation* to the cached index.html so deep links work
+        // offline. Without this denylist that also swallows /api/* navigations — which broke
+        // sign-in outright: visiting /api/auth/google rendered the app shell instead of
+        // redirecting to Google, and the OAuth callback was hijacked the same way, so a
+        // session could never be created. Those paths must reach the Pages Function proxy.
+        navigateFallbackDenylist: [/^\/api\//],
       },
       manifest: {
         name: 'WaterLog',
