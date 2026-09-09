@@ -1,4 +1,14 @@
-import type { Catch, CatchDetail, JournalPage, Lure, Stats, Trip, User, WaterBody } from '@waterlog/schema'
+import type {
+  Catch,
+  CatchDetail,
+  JournalPage,
+  Lure,
+  Stats,
+  Trip,
+  User,
+  WaterBody,
+  WaterBodyKind,
+} from '@waterlog/schema'
 
 /** Minimal typed fetch wrapper for the WaterLog API. Feature endpoints are
  * added in Epics 1+; Epic 0 only needs health. */
@@ -50,7 +60,7 @@ export interface LureCreateRequest {
 
 export interface WaterBodyCreateRequest {
   name: string
-  kind?: 'lake' | 'river' | 'pond' | 'reservoir' | 'saltwater' | null
+  kind?: WaterBodyKind | null
   centroid_lat?: number | null
   centroid_lng?: number | null
   nwps_gauge_id?: string | null

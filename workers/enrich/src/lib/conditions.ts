@@ -36,13 +36,25 @@ interface ConditionsFields {
   status: EnrichStatus
 }
 
-/** The gauges configured for a water body. `usgsAttempted` distinguishes "nothing to look for"
- * from "looked and came up empty", which decides whether a lookup is worth repeating. */
+/** Why a water has no USGS gauge. Both are permanent facts, never transient failures, so
+ * neither is worth a retry — and the app shows a different sentence for each:
+ * - `none-in-range`: nothing within the search radius (ADR-0008).
+ * - `not-applicable`: still water. Discharge is a river measurement (ADR-0010). */
+type UsgsAbsence = 'none-in-range' | 'not-applicable'
+
+/** The gauges configured for a water body. `usgsAbsence` is null when we have a gauge, and also
+ * when there was nothing to look for at all (no water body, no location) — in that case nothing
+ * is recorded, because "we didn't look" is not a fact about the water. */
 interface GaugeConfig {
   usgsId: string | null
-  usgsAttempted: boolean
+  usgsAbsence: UsgsAbsence | null
   nwpsLid: string | null
 }
+
+/** Waters where USGS discharge means nothing: a reservoir does not have a flow rate, and the
+ * nearest gauge to one is a river that happens to be close by (ADR-0010). A gauge set by hand on
+ * such a water is still honoured — explicit mapping always beats inference. */
+const STANDING_WATER_KINDS = new Set(['lake', 'pond', 'reservoir', 'saltwater'])
 
 /** A water body's cached centroid, falling back to any GPS-tagged catch on the trip — most
  * trips have no water body assigned yet (Epic 3 hasn't shipped the picker), and losing weather
@@ -84,22 +96,29 @@ async function resolveGauges(
   atMs: number,
   apiKey?: string,
 ): Promise<GaugeConfig> {
-  if (!waterBodyId) return { usgsId: null, usgsAttempted: false, nwpsLid: null }
+  if (!waterBodyId) return { usgsId: null, usgsAbsence: null, nwpsLid: null }
 
   const wb = await db
     .prepare(
-      'SELECT usgs_gauge_id, nwps_gauge_id, centroid_lat, centroid_lng FROM water_bodies WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+      'SELECT usgs_gauge_id, nwps_gauge_id, kind, centroid_lat, centroid_lng FROM water_bodies WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
     )
     .bind(waterBodyId, userId)
     .first<{
       usgs_gauge_id: string | null
       nwps_gauge_id: string | null
+      kind: string | null
       centroid_lat: number | null
       centroid_lng: number | null
     }>()
   const nwpsLid = wb?.nwps_gauge_id ?? null
 
-  if (wb?.usgs_gauge_id) return { usgsId: wb.usgs_gauge_id, usgsAttempted: true, nwpsLid }
+  if (wb?.usgs_gauge_id) return { usgsId: wb.usgs_gauge_id, usgsAbsence: null, nwpsLid }
+
+  // Still water has no flow to measure, so there is nothing to discover by proximity — the
+  // nearest gauge would be a creek in the next county, plausible and wrong (ADR-0010).
+  if (wb?.kind && STANDING_WATER_KINDS.has(wb.kind)) {
+    return { usgsId: null, usgsAbsence: 'not-applicable', nwpsLid }
+  }
 
   // Match from the water's own centroid, not from wherever this catch was logged. The result is
   // cached against the water body forever, so a single catch logged at home — or on the drive
@@ -107,7 +126,7 @@ async function resolveGauges(
   // catch on that water, including ones logged from the dam, would read it.
   const fromCentroid = wb?.centroid_lat != null && wb.centroid_lng != null
   const anchor = fromCentroid ? { lat: wb.centroid_lat as number, lng: wb.centroid_lng as number } : location
-  if (!anchor) return { usgsId: null, usgsAttempted: false, nwpsLid }
+  if (!anchor) return { usgsId: null, usgsAbsence: null, nwpsLid }
 
   const nearest = await findNearestGauge(fetchFn, anchor.lat, anchor.lng, 15, apiKey, atMs)
   // Only a gauge found from the centroid is a fact about the water worth remembering. One found
@@ -118,7 +137,7 @@ async function resolveGauges(
       .bind(nearest.siteId, waterBodyId, userId)
       .run()
   }
-  return { usgsId: nearest?.siteId ?? null, usgsAttempted: true, nwpsLid }
+  return { usgsId: nearest?.siteId ?? null, usgsAbsence: nearest ? null : 'none-in-range', nwpsLid }
 }
 
 async function computeConditionsAt(
@@ -169,20 +188,18 @@ async function computeConditionsAt(
   let water_temp_c: number | null = null
   let discharge_cms: number | null = null
   let waterOk = true
-  if (gauges.usgsAttempted) {
-    if (gauges.usgsId) {
-      const reading = await fetchGaugeReading(fetchFn, gauges.usgsId, atMs, apiKey)
-      if (reading) {
-        water_temp_c = reading.waterTempC
-        discharge_cms = reading.dischargeCms
-        sources.gauge = true
-      } else {
-        waterOk = false
-        sources.gauge = false
-      }
+  if (gauges.usgsId) {
+    const reading = await fetchGaugeReading(fetchFn, gauges.usgsId, atMs, apiKey)
+    if (reading) {
+      water_temp_c = reading.waterTempC
+      discharge_cms = reading.dischargeCms
+      sources.gauge = true
     } else {
-      sources.gauge = 'none-in-range'
+      waterOk = false
+      sources.gauge = false
     }
+  } else if (gauges.usgsAbsence) {
+    sources.gauge = gauges.usgsAbsence
   }
 
   let pool_elevation_ft: number | null = null

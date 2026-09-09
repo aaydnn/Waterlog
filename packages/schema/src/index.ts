@@ -38,6 +38,8 @@ export const userSchema = z.object({
 export type User = z.infer<typeof userSchema>
 
 export const waterBodyKindSchema = z.enum(['lake', 'river', 'pond', 'reservoir', 'saltwater'])
+/** Whether a water flows decides whether USGS discharge means anything on it (ADR-0010). */
+export type WaterBodyKind = z.infer<typeof waterBodyKindSchema>
 
 export const waterBodySchema = z.object({
   ...baseRow,

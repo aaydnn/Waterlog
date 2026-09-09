@@ -30,19 +30,22 @@ async function seedTrip(
     .run()
 }
 
+/** Defaults to a river: USGS discharge only applies to flowing water (ADR-0010), so a test
+ * about gauge matching has to be about a river. Pass a kind to test still water. */
 async function seedWaterBody(
   id: string,
   userId: string,
   centroidLat: number | null,
   centroidLng: number | null,
   gaugeId: string | null = null,
+  kind: string | null = 'river',
 ): Promise<void> {
   const now = Date.now()
   await env.DB.prepare(
     `INSERT INTO water_bodies (id, user_id, name, kind, centroid_lat, centroid_lng, usgs_gauge_id, is_home, created_at, updated_at, deleted_at)
-     VALUES (?, ?, 'Test Lake', 'lake', ?, ?, ?, 0, ?, ?, NULL)`,
+     VALUES (?, ?, 'Test Water', ?, ?, ?, ?, 0, ?, ?, NULL)`,
   )
-    .bind(id, userId, centroidLat, centroidLng, gaugeId, now, now)
+    .bind(id, userId, kind, centroidLat, centroidLng, gaugeId, now, now)
     .run()
 }
 
@@ -417,5 +420,89 @@ describe('gauge matching is anchored to the water, not the catch', () => {
       .bind('cat_nopin')
       .first<{ discharge_cms: number | null }>()
     expect(conditions!.discharge_cms).not.toBeNull()
+  })
+})
+
+describe('still water has no flow to look for (ADR-0010)', () => {
+  async function seedTypedWater(id: string, userId: string, kind: string, gaugeId: string | null = null) {
+    const now = Date.now()
+    await env.DB.prepare(
+      `INSERT INTO water_bodies (id, user_id, name, kind, centroid_lat, centroid_lng, usgs_gauge_id, is_home, created_at, updated_at, deleted_at)
+       VALUES (?, ?, 'Typed Water', ?, 36.165, -86.785, ?, 0, ?, ?, NULL)`,
+    )
+      .bind(id, userId, kind, gaugeId, now, now)
+      .run()
+  }
+
+  async function enrichOn(kind: string, suffix: string, gaugeId: string | null = null) {
+    const at = Date.UTC(2026, 5, 1, 14)
+    await seedUser(`usr_${suffix}`)
+    await seedTypedWater(`wb_${suffix}`, `usr_${suffix}`, kind, gaugeId)
+    await seedTrip(`trp_${suffix}`, `usr_${suffix}`, at, at + HOUR_MS, `wb_${suffix}`)
+    await seedCatch(`cat_${suffix}`, `usr_${suffix}`, `trp_${suffix}`, at, 36.16, -86.78)
+    const fetchFn = vi.fn(async (url: string) => {
+      const u = String(url)
+      const body = u.includes('open-meteo')
+        ? weatherSeries(at - 6 * HOUR_MS, at)
+        : u.includes('/time-series-metadata/')
+          ? usgsPage([seriesFeature()])
+          : gaugeReadingJson(at)
+      return { ok: true, json: async () => body } as Response
+    })
+    const status = await enrichCatch(env.DB, fetchFn as typeof fetch, `cat_${suffix}`, 'test-key')
+    const row = await env.DB.prepare('SELECT discharge_cms, source_meta FROM conditions WHERE catch_id = ?')
+      .bind(`cat_${suffix}`)
+      .first<{ discharge_cms: number | null; source_meta: string }>()
+    const searched = vi.mocked(fetchFn).mock.calls.some(([url]) => String(url).includes('/time-series-metadata/'))
+    return { status, row: row!, searched, sources: JSON.parse(row!.source_meta) as Record<string, unknown> }
+  }
+
+  it.each(['lake', 'pond', 'reservoir', 'saltwater'])('does not go looking for a gauge on a %s', async (kind) => {
+    const { status, row, searched, sources } = await enrichOn(kind, `still_${kind}`)
+
+    expect(searched).toBe(false) // no search at all, so no creek in the next county to cache
+    expect(row.discharge_cms).toBeNull()
+    expect(sources.gauge).toBe('not-applicable')
+    // Not a failure: there is nothing to fetch, so the job is done and must not be retried.
+    expect(status).toBe('done')
+  })
+
+  it('still matches a gauge on a river, where discharge is the whole point', async () => {
+    const { row, searched, sources } = await enrichOn('river', 'flowing')
+
+    expect(searched).toBe(true)
+    expect(row.discharge_cms).not.toBeNull()
+    expect(sources.gauge).toBe(true)
+  })
+
+  it('honours a gauge mapped by hand even on a lake — explicit beats inferred', async () => {
+    const { row, searched, sources } = await enrichOn('lake', 'mapped', 'USGS-03431600')
+
+    expect(searched).toBe(false) // no discovery needed; we were told which gauge
+    expect(row.discharge_cms).not.toBeNull()
+    expect(sources.gauge).toBe(true)
+  })
+
+  it('keeps looking when the kind is unknown, rather than assuming', async () => {
+    const at = Date.UTC(2026, 5, 1, 14)
+    await seedUser('usr_untyped')
+    await seedWaterBody('wb_untyped', 'usr_untyped', 36.3572, -83.6848) // seeds kind 'lake'
+    await env.DB.prepare('UPDATE water_bodies SET kind = NULL WHERE id = ?').bind('wb_untyped').run()
+    await seedTrip('trp_untyped', 'usr_untyped', at, at + HOUR_MS, 'wb_untyped')
+    await seedCatch('cat_untyped', 'usr_untyped', 'trp_untyped', at, 36.35, -83.68)
+    const fetchFn = vi.fn(async (url: string) => {
+      const u = String(url)
+      const body = u.includes('open-meteo')
+        ? weatherSeries(at - 6 * HOUR_MS, at)
+        : u.includes('/time-series-metadata/')
+          ? usgsPage([seriesFeature()])
+          : gaugeReadingJson(at)
+      return { ok: true, json: async () => body } as Response
+    })
+
+    await enrichCatch(env.DB, fetchFn as typeof fetch, 'cat_untyped', 'test-key')
+
+    const searched = vi.mocked(fetchFn).mock.calls.some(([url]) => String(url).includes('/time-series-metadata/'))
+    expect(searched).toBe(true)
   })
 })

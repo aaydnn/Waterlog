@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { WaterBodyKind } from '@waterlog/schema'
 import type { LocalTrip, WaterlogDb } from '../../lib/db'
 import { getDb } from '../../lib/db'
 import { bestEffortPosition } from '../../lib/geo'
@@ -47,6 +48,7 @@ export function TripBanner({ engine = new WebSyncEngine(), db = getDb() }: TripB
   const [ranked, setRanked] = useState<RankedWater[]>([])
   const [selectedWaterId, setSelectedWaterId] = useState<string | null>(null)
   const [newWaterName, setNewWaterName] = useState('')
+  const [newWaterKind, setNewWaterKind] = useState<WaterBodyKind>('lake')
   const [addingWater, setAddingWater] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
   const [closePrompt, setClosePrompt] = useState<{ reason: AutoCloseReason; endAt: number } | null>(null)
@@ -165,12 +167,14 @@ export function TripBanner({ engine = new WebSyncEngine(), db = getDb() }: TripB
     try {
       const water = await createWaterBody(db, {
         name,
+        kind: newWaterKind,
         centroid_lat: position?.lat ?? null,
         centroid_lng: position?.lng ?? null,
       })
       setRanked(rankByDistance([...ranked.map((r) => r.water), water], position))
       setSelectedWaterId(water.id)
       setNewWaterName('')
+      setNewWaterKind('lake')
       setAddingWater(false)
     } catch {
       setAddError('Could not add that water — needs a connection.')
@@ -280,6 +284,21 @@ export function TripBanner({ engine = new WebSyncEngine(), db = getDb() }: TripB
               value={newWaterName}
               onChange={(e) => setNewWaterName(e.target.value)}
             />
+            {/* Not cosmetic: enrichment only looks for a flow gauge on moving water, because
+                discharge is a river measurement and the nearest gauge to a lake is someone
+                else's creek (ADR-0010). */}
+            <select
+              aria-label="Kind of water"
+              className="trip-banner__water-select"
+              value={newWaterKind}
+              onChange={(e) => setNewWaterKind(e.target.value as WaterBodyKind)}
+            >
+              <option value="lake">Lake</option>
+              <option value="reservoir">Reservoir</option>
+              <option value="pond">Pond</option>
+              <option value="river">River</option>
+              <option value="saltwater">Saltwater</option>
+            </select>
             <button type="button" className="trip-banner__button trip-banner__button--end" onClick={() => void onAddWater()}>
               Add
             </button>

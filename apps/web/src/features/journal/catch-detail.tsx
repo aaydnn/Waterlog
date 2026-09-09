@@ -112,6 +112,10 @@ function enrichmentNote(status: string, sourceMeta: string | null): string | nul
     return 'No gauge covers this water, so there is no level or flow to record.'
   }
 
+  if (sources.gauge === 'not-applicable') {
+    return 'Still water has no flow to measure.'
+  }
+
   return null
 }
 

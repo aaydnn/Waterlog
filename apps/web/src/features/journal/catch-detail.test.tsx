@@ -215,3 +215,19 @@ describe('CatchDetail partial state (T3.1)', () => {
     expect(await screen.findByText('76°F')).toBeInTheDocument()
   })
 })
+
+describe('CatchDetail still water (ADR-0010)', () => {
+  it('says flow is meaningless here, not that a source failed', async () => {
+    const base = payload()
+    mockDetail({
+      ...base,
+      conditions: { ...base.conditions!, source_meta: JSON.stringify({ weather: true, gauge: 'not-applicable', pool: true }) },
+    })
+    render(<CatchDetail catchId="cat_1" onClose={() => {}} />)
+
+    expect(await screen.findByText('Still water has no flow to measure.')).toBeInTheDocument()
+    expect(screen.queryByText(/Couldn't reach/)).not.toBeInTheDocument()
+    // The reservoir's own level still comes from NWPS and is shown.
+    expect(screen.getByText('1018.4 ft')).toBeInTheDocument()
+  })
+})
