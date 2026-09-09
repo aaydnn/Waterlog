@@ -16,3 +16,9 @@
   width: auto;
   display: block;
 }
+
+/* Held while /api/me answers — a blank ground rather than a flash of the sign-in screen. */
+.app-boot {
+  min-height: 100dvh;
+  background: var(--navy);
+}

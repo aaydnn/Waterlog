@@ -1,6 +1,6 @@
 import type { CatchDetail as CatchDetailPayload } from '@waterlog/schema'
 import { useEffect, useState } from 'react'
-import { apiClient } from '../../lib/api-client'
+import { ApiError, apiClient } from '../../lib/api-client'
 import {
   formatDepth,
   formatFromSunrise,
@@ -82,8 +82,13 @@ export function CatchDetail({ catchId, onClose }: CatchDetailProps) {
       .then((payload) => {
         if (!cancelled) setDetail(payload)
       })
-      .catch(() => {
-        if (!cancelled) setError('Offline — the full conditions for this catch are on the server.')
+      .catch((error) => {
+        if (cancelled) return
+        setError(
+          error instanceof ApiError && error.status === 401
+            ? 'Sign in to see the full conditions for this catch.'
+            : 'Offline — the full conditions for this catch are on the server.',
+        )
       })
     return () => {
       cancelled = true

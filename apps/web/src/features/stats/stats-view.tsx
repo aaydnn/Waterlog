@@ -1,6 +1,6 @@
 import type { Stats } from '@waterlog/schema'
 import { useEffect, useState } from 'react'
-import { apiClient } from '../../lib/api-client'
+import { ApiError, apiClient } from '../../lib/api-client'
 import { speciesLabel } from '../capture/species'
 import './stats-view.css'
 
@@ -74,8 +74,15 @@ export function StatsView() {
       .then((payload) => {
         if (!cancelled) setStats(payload)
       })
-      .catch(() => {
-        if (!cancelled) setError('Offline — stats are computed on the server.')
+      .catch((error) => {
+        if (cancelled) return
+        // 401 means the session lapsed, not that the phone lost signal (the app-level handler
+        // is already returning to sign-in) — don't blame the connection for it.
+        setError(
+          error instanceof ApiError && error.status === 401
+            ? 'Sign in to see your stats.'
+            : 'Offline — stats are computed on the server.',
+        )
       })
     return () => {
       cancelled = true

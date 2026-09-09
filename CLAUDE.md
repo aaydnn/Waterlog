@@ -59,6 +59,17 @@ pnpm migrate          # wrangler d1 migrations apply DB --local
 pnpm seed             # dev-only seed; NEVER run against production
 ```
 
+Vite proxies `/api/*` to `127.0.0.1:8787`, so run both. Everything but `/api/health` needs a
+session — without one the app shows the sign-in screen and every request 401s.
+
+**Signing in locally.** Google OAuth won't work against localhost (placeholder client secret,
+unregistered redirect), so use the magic link: `RESEND_API_KEY` is unset in dev, so the
+`ConsoleMailer` prints the link in the `wrangler dev` console. The link is built from `APP_URL`,
+which in `wrangler.toml` is the production Pages site — create `workers/api/.dev.vars` (gitignored)
+with `APP_URL = "http://localhost:5173"` and restart `wrangler dev`, or hand-edit the host when
+you paste it. Sign in as **`demo@waterlog.app`** to see the seeded trips and catches; any other
+address creates a fresh, empty user.
+
 ## Deploy
 
 Everything deploys from CI (`.github/workflows/ci.yml`) via `wrangler`. Web (Cloudflare Pages)

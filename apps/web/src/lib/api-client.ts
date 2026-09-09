@@ -1,4 +1,4 @@
-import type { Catch, CatchDetail, JournalPage, Lure, Stats, Trip, WaterBody } from '@waterlog/schema'
+import type { Catch, CatchDetail, JournalPage, Lure, Stats, Trip, User, WaterBody } from '@waterlog/schema'
 
 /** Minimal typed fetch wrapper for the WaterLog API. Feature endpoints are
  * added in Epics 1+; Epic 0 only needs health. */
@@ -79,6 +79,15 @@ export class ApiError extends Error {
   }
 }
 
+let onUnauthorized: (() => void) | null = null
+
+/** The app registers one handler so an expired session anywhere — a background sync, a stats
+ * fetch — puts the whole app back on the sign-in screen instead of each caller inventing its
+ * own story about what went wrong. */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: 'include',
@@ -86,6 +95,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   })
   if (!res.ok) {
+    if (res.status === 401) onUnauthorized?.()
     throw new ApiError(res.status, `${init?.method ?? 'GET'} ${path} failed (${res.status})`)
   }
   return (await res.json()) as T
@@ -93,6 +103,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const apiClient = {
   health: () => request<HealthResponse>('/api/health'),
+  me: () => request<{ user: User }>('/api/me'),
+  requestMagicLink: (email: string) =>
+    request<{ ok: true }>('/api/auth/magic-link', { method: 'POST', body: JSON.stringify({ email }) }),
+  logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   sync: (body: SyncBatchRequest) =>
     request<SyncBatchResponse>('/api/sync', { method: 'POST', body: JSON.stringify(body) }),
   listLures: () => request<{ lures: Lure[] }>('/api/lures'),

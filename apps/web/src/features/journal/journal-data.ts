@@ -1,5 +1,5 @@
 import type { JournalEntry, JournalPage } from '@waterlog/schema'
-import { apiClient, type JournalQuery } from '../../lib/api-client'
+import { ApiError, apiClient, type JournalQuery } from '../../lib/api-client'
 import type { WaterlogDb } from '../../lib/db'
 
 export interface JournalResult extends JournalPage {
@@ -63,8 +63,11 @@ export async function fetchJournal(db: WaterlogDb, query: JournalQuery): Promise
   try {
     const page = await apiClient.journal(query)
     return { ...page, offline: false }
-  } catch {
-    return { entries: await localJournal(db, query), next_cursor: null, offline: true }
+  } catch (error) {
+    // A 401 is not a bad connection. The app-level handler is already switching to the sign-in
+    // screen; saying "offline" here would be the same lie the capture toast used to tell.
+    const signedOut = error instanceof ApiError && error.status === 401
+    return { entries: await localJournal(db, query), next_cursor: null, offline: !signedOut }
   }
 }
 
