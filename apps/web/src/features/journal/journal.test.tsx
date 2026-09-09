@@ -103,7 +103,30 @@ describe('Journal (F3)', () => {
     await waitFor(() => expect(urls.at(-1)).toContain('species=bluegill'))
 
     await user.selectOptions(screen.getByLabelText('Filter by water'), 'wb_norris')
-    await waitFor(() => expect(urls.at(-1)).toContain('water_body_id=wb_norris'))
+    // Composed, not replaced: the second filter must not drop the first (T3.1).
+    await waitFor(() => {
+      const last = new URL(`http://x${urls.at(-1)!}`)
+      expect(last.searchParams.get('species')).toBe('bluegill')
+      expect(last.searchParams.get('water_body_id')).toBe('wb_norris')
+    })
+  })
+
+  it('drops every filter at once on Clear', async () => {
+    const urls = mockJournal([{ entries: [entry()], next_cursor: null }])
+    const user = userEvent.setup()
+    render(<Journal db={freshDb()} />)
+
+    await screen.findAllByRole('listitem')
+    await user.selectOptions(screen.getByLabelText('Filter by species'), 'bluegill')
+    await user.type(screen.getByLabelText('From date'), '2026-07-04')
+    await waitFor(() => expect(urls.at(-1)).toContain('from='))
+
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+
+    await waitFor(() => {
+      const last = new URL(`http://x${urls.at(-1)!}`)
+      expect([...last.searchParams.keys()]).toEqual([])
+    })
   })
 
   it('turns a date range into inclusive whole-day bounds', async () => {

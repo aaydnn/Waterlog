@@ -1,10 +1,29 @@
 # Epic 3 — Journal & Stats: acceptance
 
-Packet §10 criterion: **"Numbers reconcile with raw SQL spot-checks."**
+Packet §10 criterion: **"Numbers reconcile with raw SQL spot-checks."** Task sheet: **T3.1** and
+**T3.2**.
 
-## Automated
+## T3.1 — filters compose; conditions panel shows partial state honestly
 
-`workers/api/test/journal.test.ts` (17 tests) drives the real queries against a real D1 through
+**Filters compose.** `listJournal` ANDs every supplied filter onto one predicate, and the client
+sends all set filters on every request rather than one at a time. Proven both ends: four API
+tests (water+lure narrower than either alone, filter+date range, an empty page when the
+combination matches nothing, and every filter surviving a page turn) and two client tests (a
+second filter does not drop the first; Clear drops all of them).
+
+**Partial state, honestly.** The conditions panel omits a reading it does not have — never a zero
+— labels water temperature with its provenance (measured / gauge / modeled), and reads
+`enrich_status` with `source_meta` to say *why* something is absent. The distinction that matters:
+a gauge that exists and failed says it will fill in if the source comes back, while a water with
+no gauge in range says none covers it — permanent, and not a failure (ADR-0008). An outright
+failure says so; an unparseable `source_meta` degrades to showing the readings without a note.
+Partial is never treated as empty: whatever was fetched is still displayed alongside the note.
+
+## T3.2 — numbers reconcile with raw SQL
+
+### Automated
+
+`workers/api/test/journal.test.ts` (21 tests) drives the real queries against a real D1 through
 `vitest-pool-workers`, asserting exact figures over a known fixture: 6 catches across 3 trips
 (4h + 2h + 1h, one of them a skunk) on 2 waters. It covers reverse-chron ordering, the joined
 lure and water names, per-user isolation, each filter, inclusive date bounds, keyset paging with
@@ -12,11 +31,11 @@ no repeated or skipped row, and the stats totals and all three breakdowns — in
 no water in its own bucket, an open trip counted in trips but not in hours, and an angler who has
 logged nothing.
 
-`apps/web` (98 tests) covers the journal's rendering, filters, paging and offline fallback; the
+`apps/web` (126 tests) covers the journal's rendering, filters, paging and offline fallback; the
 detail sheet's units and its handling of readings a water will never have; the stats sentence and
 breakdowns; the session gate; and imperial display conversion.
 
-## Manual spot-check — 2026-09-08, local D1 after `pnpm migrate && pnpm seed`
+### Manual spot-check — 2026-09-08, local D1 after `pnpm migrate && pnpm seed`
 
 Dev seed plus 12 catches that synced out of the PWA's offline queue during the same session
 (they arrived as 9 auto-created 1h orphan trips, F2). `GET /api/stats` against raw SQL over the

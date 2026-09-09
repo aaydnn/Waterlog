@@ -68,6 +68,53 @@ function conditionRows(conditions: CatchDetailPayload['conditions']): Row[] {
   ].filter((row) => row.value !== null)
 }
 
+/** What `workers/enrich` records about where each reading came from (its `sources` object). */
+interface SourceMeta {
+  weather?: boolean
+  /** true, false (a gauge exists and the fetch failed), or 'none-in-range' (ADR-0008: no gauge
+   * covers this water, and none ever will — Lake Oliphant is a 40-acre pond). */
+  gauge?: boolean | string
+  pool?: boolean
+  water_temp?: string
+}
+
+function parseSourceMeta(raw: string | null): SourceMeta {
+  if (!raw) return {}
+  try {
+    return JSON.parse(raw) as SourceMeta
+  } catch {
+    return {}
+  }
+}
+
+/** Why a reading is absent, in the angler's terms.
+ *
+ * "Missing" and "does not exist" are different facts and the panel must not blur them: a gauge
+ * that failed today will fill in on a retry, while a water with no gauge in range will never
+ * have one. Confusing the two teaches the angler to distrust the whole panel — and Epic 4 reads
+ * the same distinction to decide which dimensions a pattern can use. */
+function enrichmentNote(status: string, sourceMeta: string | null): string | null {
+  const sources = parseSourceMeta(sourceMeta)
+
+  if (status === 'failed') return 'Conditions could not be fetched for this catch.'
+
+  const missing: string[] = []
+  if (sources.weather === false) missing.push('weather')
+  if (sources.gauge === false) missing.push('river level')
+  if (sources.pool === false) missing.push('lake level')
+
+  if (status === 'partial' || missing.length > 0) {
+    const what = missing.length > 0 ? missing.join(' and ') : 'some readings'
+    return `Couldn't reach ${what} for this catch — it'll fill in if the source comes back.`
+  }
+
+  if (sources.gauge === 'none-in-range') {
+    return 'No gauge covers this water, so there is no level or flow to record.'
+  }
+
+  return null
+}
+
 /** F3 detail: the photo as the hero, then the fish, then every enriched condition. */
 export function CatchDetail({ catchId, onClose }: CatchDetailProps) {
   const [detail, setDetail] = useState<CatchDetailPayload | null>(null)
@@ -96,6 +143,7 @@ export function CatchDetail({ catchId, onClose }: CatchDetailProps) {
   }, [catchId])
 
   const rows = conditionRows(detail?.conditions ?? null)
+  const note = detail ? enrichmentNote(detail.catch.enrich_status, detail.conditions?.source_meta ?? null) : null
   const photo = photoUrl(detail?.catch.photo_key ?? null)
   const fish = detail
     ? [formatLength(detail.catch.length_mm), formatWeight(detail.catch.weight_g), formatDepth(detail.catch.depth_m)]
@@ -126,6 +174,7 @@ export function CatchDetail({ catchId, onClose }: CatchDetailProps) {
             {detail.catch.notes && <p className="catch-detail__notes">{detail.catch.notes}</p>}
 
             <h3 className="catch-detail__heading">Conditions</h3>
+            {note && <p className="catch-detail__note">{note}</p>}
             {rows.length === 0 ? (
               <p className="catch-detail__notice">
                 {detail.catch.enrich_status === 'pending'

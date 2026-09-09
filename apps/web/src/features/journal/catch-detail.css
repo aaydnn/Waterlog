@@ -116,3 +116,12 @@
   font-weight: 700;
   color: var(--bone);
 }
+
+/* Why a reading is missing. Sits above the grid, in the muted voice of a footnote — it explains
+   an absence, it is not an error. */
+.catch-detail__note {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--bone-72);
+  text-wrap: pretty;
+}

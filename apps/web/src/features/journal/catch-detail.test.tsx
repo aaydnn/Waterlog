@@ -149,3 +149,69 @@ describe('CatchDetail (F3 detail)', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('CatchDetail partial state (T3.1)', () => {
+  function withSources(status: 'done' | 'partial' | 'failed', sources: Record<string, unknown>) {
+    const base = payload()
+    return {
+      ...base,
+      catch: { ...base.catch, enrich_status: status },
+      conditions: { ...base.conditions!, source_meta: JSON.stringify(sources) },
+    }
+  }
+
+  it('says nothing when everything was fetched', async () => {
+    mockDetail(withSources('done', { weather: true, pool: true, water_temp: 'measured' }))
+    render(<CatchDetail catchId="cat_1" onClose={() => {}} />)
+
+    await screen.findByRole('heading', { name: 'Largemouth Bass' })
+    expect(screen.queryByText(/Couldn't reach/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/No gauge covers/)).not.toBeInTheDocument()
+  })
+
+  it('distinguishes a source that failed from one that does not exist', async () => {
+    // A gauge that exists and failed: retryable, and the panel should promise it will fill in.
+    mockDetail(withSources('partial', { weather: true, gauge: false }))
+    const { unmount } = render(<CatchDetail catchId="cat_1" onClose={() => {}} />)
+    expect(await screen.findByText(/Couldn't reach river level/)).toBeInTheDocument()
+    unmount()
+
+    // No gauge in range is permanent (ADR-0008) and is not a failure — Lake Oliphant will never
+    // have one, and telling the angler to wait for it would be a lie.
+    mockDetail(withSources('done', { weather: true, gauge: 'none-in-range' }))
+    render(<CatchDetail catchId="cat_1" onClose={() => {}} />)
+    expect(await screen.findByText(/No gauge covers this water/)).toBeInTheDocument()
+    expect(screen.queryByText(/Couldn't reach/)).not.toBeInTheDocument()
+  })
+
+  it('names every source that is missing, not just the first', async () => {
+    mockDetail(withSources('partial', { weather: false, pool: false }))
+    render(<CatchDetail catchId="cat_1" onClose={() => {}} />)
+
+    expect(await screen.findByText(/Couldn't reach weather and lake level/)).toBeInTheDocument()
+  })
+
+  it('reports an outright failure as one', async () => {
+    mockDetail(withSources('failed', {}))
+    render(<CatchDetail catchId="cat_1" onClose={() => {}} />)
+
+    expect(await screen.findByText('Conditions could not be fetched for this catch.')).toBeInTheDocument()
+  })
+
+  it('still shows the readings it did get alongside the note', async () => {
+    mockDetail(withSources('partial', { weather: true, gauge: false }))
+    render(<CatchDetail catchId="cat_1" onClose={() => {}} />)
+
+    await screen.findByText(/Couldn't reach river level/)
+    // Partial is not empty: the weather it did fetch is still worth showing.
+    expect(screen.getByText('76°F')).toBeInTheDocument()
+  })
+
+  it('survives source_meta it cannot parse rather than blanking the panel', async () => {
+    const base = payload()
+    mockDetail({ ...base, conditions: { ...base.conditions!, source_meta: 'not json{' } })
+    render(<CatchDetail catchId="cat_1" onClose={() => {}} />)
+
+    expect(await screen.findByText('76°F')).toBeInTheDocument()
+  })
+})

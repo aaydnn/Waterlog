@@ -365,3 +365,61 @@ describe('GET /api/photos/:key', () => {
     expect((await get(`/api/photos/photos/${userId}/missing.jpg`, cookie)).status).toBe(404)
   })
 })
+
+describe('GET /api/journal filter composition (T3.1)', () => {
+  it('ANDs filters together rather than letting the last one win', async () => {
+    const angler = await seedAngler(`compose-${crypto.randomUUID()}@example.com`)
+
+    // Norris holds 3 catches, 1 of them on the spinnerbait; Oliphant holds the other spinnerbait
+    // catch. Either filter alone matches more than both together do.
+    const both = (await (
+      await get(
+        `/api/journal?water_body_id=wb_norris_${angler.userId}&lure_id=lur_spin_${angler.userId}`,
+        angler.cookie,
+      )
+    ).json()) as JournalBody
+    expect(both.entries).toHaveLength(1)
+    expect(both.entries[0]!.id).toBe(`cat_1_${angler.userId}`)
+  })
+
+  it('composes a filter with a date range, narrowing both ways', async () => {
+    const angler = await seedAngler(`compose2-${crypto.randomUUID()}@example.com`)
+
+    const juneBass = (await (
+      await get(`/api/journal?species=largemouth_bass&from=${JUNE_1}&to=${JUNE_1 + 3 * HOUR}`, angler.cookie)
+    ).json()) as JournalBody
+    // 3 largemouth across both months, 3 catches in that June window — 2 satisfy both.
+    expect(juneBass.entries).toHaveLength(2)
+    expect(juneBass.entries.every((e) => e.species === 'largemouth_bass')).toBe(true)
+  })
+
+  it('returns an empty page, not everything, when the combination matches nothing', async () => {
+    const angler = await seedAngler(`compose3-${crypto.randomUUID()}@example.com`)
+
+    const none = (await (
+      await get(`/api/journal?species=crappie&water_body_id=wb_norris_${angler.userId}`, angler.cookie)
+    ).json()) as JournalBody
+    expect(none.entries).toEqual([]) // both crappie were caught on Oliphant
+    expect(none.next_cursor).toBeNull()
+  })
+
+  it('keeps every filter while paging through a composed result', async () => {
+    const angler = await seedAngler(`compose4-${crypto.randomUUID()}@example.com`)
+
+    const first = (await (
+      await get(`/api/journal?water_body_id=wb_norris_${angler.userId}&limit=2`, angler.cookie)
+    ).json()) as JournalBody
+    expect(first.entries).toHaveLength(2)
+    expect(first.next_cursor).not.toBeNull()
+
+    const second = (await (
+      await get(
+        `/api/journal?water_body_id=wb_norris_${angler.userId}&limit=2&cursor=${encodeURIComponent(first.next_cursor!)}`,
+        angler.cookie,
+      )
+    ).json()) as JournalBody
+    // Norris has exactly 3; a page that dropped the filter would return the Oliphant ones too.
+    expect(second.entries).toHaveLength(1)
+    expect(second.entries.every((e) => e.water_body_name === 'Norris Lake')).toBe(true)
+  })
+})
