@@ -1,4 +1,4 @@
-import type { Catch, Lure, Trip, WaterBody } from '@waterlog/schema'
+import type { Catch, CatchDetail, JournalPage, Lure, Stats, Trip, WaterBody } from '@waterlog/schema'
 
 /** Minimal typed fetch wrapper for the WaterLog API. Feature endpoints are
  * added in Epics 1+; Epic 0 only needs health. */
@@ -57,6 +57,18 @@ export interface WaterBodyCreateRequest {
   is_home?: 0 | 1
 }
 
+/** F3 journal filters. Everything is optional — the bare call is 'my whole journal, newest
+ * first'. */
+export interface JournalQuery {
+  limit?: number
+  cursor?: string | null
+  species?: string
+  water_body_id?: string
+  lure_id?: string
+  from?: number
+  to?: number
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -86,6 +98,16 @@ export const apiClient = {
   listLures: () => request<{ lures: Lure[] }>('/api/lures'),
   createLure: (body: LureCreateRequest) =>
     request<{ lure: Lure }>('/api/lures', { method: 'POST', body: JSON.stringify(body) }),
+  journal: (query: JournalQuery = {}) => {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== '') params.set(key, String(value))
+    }
+    const qs = params.toString()
+    return request<JournalPage>(`/api/journal${qs ? `?${qs}` : ''}`)
+  },
+  catchDetail: (id: string) => request<CatchDetail>(`/api/journal/${id}`),
+  stats: () => request<Stats>('/api/stats'),
   listWaterBodies: () => request<{ water_bodies: WaterBody[] }>('/api/water-bodies'),
   createWaterBody: (body: WaterBodyCreateRequest) =>
     request<{ water_body: WaterBody }>('/api/water-bodies', { method: 'POST', body: JSON.stringify(body) }),

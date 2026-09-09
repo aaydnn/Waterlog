@@ -1,0 +1,179 @@
+.journal {
+  display: block;
+}
+
+.journal__bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.journal__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.journal__filters select,
+.journal__filters input {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--bone);
+  background: var(--navy-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  padding: 7px 9px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.journal__filters select:focus-visible,
+.journal__filters input:focus-visible,
+.journal__layout:focus-visible,
+.journal__clear:focus-visible,
+.journal__more:focus-visible,
+.journal-card:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 2px;
+}
+
+.journal__filters select option {
+  color: var(--bone);
+  background: var(--navy-1);
+}
+
+.journal__clear,
+.journal__layout {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bone-72);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  padding: 7px 12px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.journal__notice,
+.journal__empty {
+  font-size: 14px;
+  color: var(--bone-72);
+  margin: 0 0 16px;
+}
+
+.journal__empty {
+  padding: 32px 0;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.journal__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Photography-forward (packet §09): in grid the photo IS the card, and the text sits on it. */
+.journal__items--grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.journal__items--list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.journal-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  background: var(--navy-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.journal-card__photo {
+  display: block;
+  position: relative;
+  background: var(--navy-2);
+}
+
+.journal-card__photo img,
+.journal-card__no-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.journal-card__no-photo {
+  background: linear-gradient(140deg, var(--navy-2), var(--navy-1));
+}
+
+.journal-card__body {
+  display: block;
+  padding: 10px 12px 12px;
+}
+
+.journal-card__species {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--bone);
+}
+
+.journal-card__meta {
+  display: block;
+  font-size: 12px;
+  color: var(--bone-72);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* In list view the photo is a thumbnail beside the text, not the hero. */
+.journal__items--list .journal-card {
+  display: flex;
+  align-items: stretch;
+}
+
+.journal__items--list .journal-card__photo {
+  flex: 0 0 96px;
+}
+
+.journal__items--list .journal-card__photo img,
+.journal__items--list .journal-card__no-photo {
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.journal__items--list .journal-card__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  align-self: center;
+}
+
+.journal__more {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--bone);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  cursor: pointer;
+}

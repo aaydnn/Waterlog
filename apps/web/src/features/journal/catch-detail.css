@@ -1,0 +1,118 @@
+/* Sits on the same scrim as the capture sheets (.sheet-scrim, capture-flow.css) but is a
+   full-height reader rather than a picker: the photo is the hero and the conditions scroll. */
+.catch-detail {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: 6vh;
+  z-index: 46;
+  max-width: 480px;
+  margin: 0 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--navy-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-elevated);
+  padding: 0 20px calc(var(--safe-bottom) + 28px);
+}
+
+.catch-detail__close {
+  position: sticky;
+  top: 12px;
+  float: right;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+  color: var(--bone);
+  background: rgba(11, 29, 42, 0.72);
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.catch-detail__close:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 2px;
+}
+
+.catch-detail__photo {
+  display: block;
+  width: calc(100% + 40px);
+  margin: 0 -20px 16px;
+  max-height: 46vh;
+  object-fit: cover;
+}
+
+.catch-detail__species {
+  margin: 20px 0 2px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.catch-detail__when,
+.catch-detail__where,
+.catch-detail__fish {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--bone-72);
+}
+
+.catch-detail__fish {
+  color: var(--bone);
+  font-weight: 700;
+}
+
+.catch-detail__notes {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--bone);
+}
+
+.catch-detail__heading {
+  margin: 24px 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bone-48);
+}
+
+.catch-detail__notice {
+  font-size: 14px;
+  color: var(--bone-72);
+  padding: 12px 0;
+}
+
+.catch-detail__grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.catch-detail__row {
+  background: var(--navy-1);
+  padding: 10px 12px;
+}
+
+.catch-detail__row dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bone-48);
+}
+
+.catch-detail__row dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--bone);
+}

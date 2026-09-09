@@ -29,3 +29,11 @@ export const SPECIES: Species[] = [
   { slug: 'longnose_gar', label: 'Longnose Gar' },
   { slug: 'other', label: 'Other' },
 ]
+
+const LABELS = new Map(SPECIES.map((s) => [s.slug, s.label]))
+
+/** Display name for a stored slug. Unknown slugs (an older client's, or a hand-edited row)
+ * render as themselves rather than disappearing. */
+export function speciesLabel(slug: string): string {
+  return LABELS.get(slug) ?? slug
+}
