@@ -343,3 +343,79 @@ describe('enrichTripHours', () => {
     expect(count!.n).toBe(4)
   })
 })
+
+describe('gauge matching is anchored to the water, not the catch', () => {
+  /** Records the bbox each gauge-search request was made with, so a test can prove *where* the
+   * search happened rather than only what it returned. */
+  function bboxRecordingFetch(at: number) {
+    const bboxes: string[] = []
+    const fetchFn = vi.fn(async (url: string) => {
+      const u = String(url)
+      if (u.includes('open-meteo')) {
+        return { ok: true, json: async () => weatherSeries(at - 6 * HOUR_MS, at) } as unknown as Response
+      }
+      if (u.includes('/time-series-metadata/')) {
+        const bbox = new URL(u).searchParams.get('bbox')
+        if (bbox) bboxes.push(bbox)
+        return { ok: true, json: async () => usgsPage([seriesFeature()]) } as unknown as Response
+      }
+      return { ok: true, json: async () => gaugeReadingJson(at) } as unknown as Response
+    })
+    return { fetchFn: fetchFn as unknown as typeof fetch, bboxes }
+  }
+
+  it("searches around the lake's centroid even when the catch was logged 200 km away", async () => {
+    const at = Date.UTC(2026, 5, 1, 14)
+    await seedUser('usr_anchor')
+    // Norris Lake's centroid, and a catch logged from home in Nashville.
+    await seedWaterBody('wb_anchor', 'usr_anchor', 36.3572, -83.6848)
+    await seedTrip('trp_anchor', 'usr_anchor', at, at + HOUR_MS, 'wb_anchor')
+    await seedCatch('cat_anchor', 'usr_anchor', 'trp_anchor', at, 36.1627, -86.7816)
+    const { fetchFn, bboxes } = bboxRecordingFetch(at)
+
+    await enrichCatch(env.DB, fetchFn, 'cat_anchor', 'test-key')
+
+    expect(bboxes).toHaveLength(1)
+    const [west, south, east, north] = bboxes[0]!.split(',').map(Number)
+    // The box is around the lake (-83.68), not around Nashville (-86.78).
+    expect(west!).toBeGreaterThan(-84)
+    expect(east!).toBeLessThan(-83)
+    expect(south!).toBeLessThan(36.3572)
+    expect(north!).toBeGreaterThan(36.3572)
+  })
+
+  it('still uses the catch position when the water has no centroid to anchor to', async () => {
+    const at = Date.UTC(2026, 5, 1, 14)
+    await seedUser('usr_nocentroid')
+    await seedWaterBody('wb_nocentroid', 'usr_nocentroid', null, null)
+    await seedTrip('trp_nocentroid', 'usr_nocentroid', at, at + HOUR_MS, 'wb_nocentroid')
+    await seedCatch('cat_nocentroid', 'usr_nocentroid', 'trp_nocentroid', at, 36.1627, -86.7816)
+    const { fetchFn, bboxes } = bboxRecordingFetch(at)
+
+    await enrichCatch(env.DB, fetchFn, 'cat_nocentroid', 'test-key')
+
+    const [west, , east] = bboxes[0]!.split(',').map(Number)
+    expect(west!).toBeLessThan(-86.7)
+    expect(east!).toBeGreaterThan(-86.8)
+  })
+
+  it('does not pin the water to a gauge found from a catch position', async () => {
+    const at = Date.UTC(2026, 5, 1, 14)
+    await seedUser('usr_nopin')
+    await seedWaterBody('wb_nopin', 'usr_nopin', null, null)
+    await seedTrip('trp_nopin', 'usr_nopin', at, at + HOUR_MS, 'wb_nopin')
+    await seedCatch('cat_nopin', 'usr_nopin', 'trp_nopin', at, 36.1627, -86.7816)
+    const { fetchFn } = bboxRecordingFetch(at)
+
+    await enrichCatch(env.DB, fetchFn, 'cat_nopin', 'test-key')
+
+    // The reading is used for this catch, but a gauge near one catch is not a fact about the
+    // water — remembering it is how a single mislocated catch poisons every later one.
+    const wb = await env.DB.prepare('SELECT usgs_gauge_id FROM water_bodies WHERE id = ?').bind('wb_nopin').first()
+    expect(wb!.usgs_gauge_id).toBeNull()
+    const conditions = await env.DB.prepare('SELECT discharge_cms FROM conditions WHERE catch_id = ?')
+      .bind('cat_nopin')
+      .first<{ discharge_cms: number | null }>()
+    expect(conditions!.discharge_cms).not.toBeNull()
+  })
+})

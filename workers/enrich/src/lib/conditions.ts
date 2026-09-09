@@ -87,16 +87,32 @@ async function resolveGauges(
   if (!waterBodyId) return { usgsId: null, usgsAttempted: false, nwpsLid: null }
 
   const wb = await db
-    .prepare('SELECT usgs_gauge_id, nwps_gauge_id FROM water_bodies WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
+    .prepare(
+      'SELECT usgs_gauge_id, nwps_gauge_id, centroid_lat, centroid_lng FROM water_bodies WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    )
     .bind(waterBodyId, userId)
-    .first<{ usgs_gauge_id: string | null; nwps_gauge_id: string | null }>()
+    .first<{
+      usgs_gauge_id: string | null
+      nwps_gauge_id: string | null
+      centroid_lat: number | null
+      centroid_lng: number | null
+    }>()
   const nwpsLid = wb?.nwps_gauge_id ?? null
 
   if (wb?.usgs_gauge_id) return { usgsId: wb.usgs_gauge_id, usgsAttempted: true, nwpsLid }
-  if (!location) return { usgsId: null, usgsAttempted: false, nwpsLid }
 
-  const nearest = await findNearestGauge(fetchFn, location.lat, location.lng, 15, apiKey, atMs)
-  if (nearest) {
+  // Match from the water's own centroid, not from wherever this catch was logged. The result is
+  // cached against the water body forever, so a single catch logged at home — or on the drive
+  // back — would otherwise pin the lake to a gauge near the angler's couch, and every later
+  // catch on that water, including ones logged from the dam, would read it.
+  const fromCentroid = wb?.centroid_lat != null && wb.centroid_lng != null
+  const anchor = fromCentroid ? { lat: wb.centroid_lat as number, lng: wb.centroid_lng as number } : location
+  if (!anchor) return { usgsId: null, usgsAttempted: false, nwpsLid }
+
+  const nearest = await findNearestGauge(fetchFn, anchor.lat, anchor.lng, 15, apiKey, atMs)
+  // Only a gauge found from the centroid is a fact about the water worth remembering. One found
+  // from a catch position serves that catch and is forgotten.
+  if (nearest && fromCentroid) {
     await db
       .prepare('UPDATE water_bodies SET usgs_gauge_id = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL AND usgs_gauge_id IS NULL')
       .bind(nearest.siteId, waterBodyId, userId)
