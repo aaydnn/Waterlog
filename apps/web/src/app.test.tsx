@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from './app'
 import { setUnauthorizedHandler } from './lib/api-client'
+import { getActiveUserId } from './lib/auth/active-user'
 import type { AuthProvider, SignInResult } from './lib/auth/auth-provider'
 import type { SyncEngine } from './lib/sync/sync-engine'
 
@@ -97,6 +98,20 @@ describe('App session gate', () => {
     await apiClient.stats().catch(() => undefined)
 
     expect(await screen.findByRole('button', { name: 'Continue with Google' })).toBeInTheDocument()
+  })
+
+  it('signs out to the sign-in screen, without clearing what is still queued', async () => {
+    mockQuietApi()
+    const auth = fakeAuth(async () => user)
+    const testUser = userEvent.setup()
+    render(<App engine={idleEngine} auth={auth} />)
+    await screen.findByRole('navigation', { name: 'Main' })
+
+    await testUser.click(screen.getByRole('button', { name: 'Sign out' }))
+
+    expect(await screen.findByRole('button', { name: 'Continue with Google' })).toBeInTheDocument()
+    expect(auth.signOut).toHaveBeenCalledTimes(1)
+    expect(getActiveUserId()).toBeNull()
   })
 
   it('switches between Journal and Stats', async () => {

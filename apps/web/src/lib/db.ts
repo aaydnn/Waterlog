@@ -13,6 +13,9 @@ type CatchFields = Omit<
 
 export interface LocalTrip extends TripFields {
   local_id: string
+  /** Who queued this row. null on rows written before v3, which the next user to flush adopts
+   * — on a single-angler device that is the right answer, and it is the only one available. */
+  user_id: string | null
   /** null only for a trip the server created (an orphan-catch trip) that this device never
    * enqueued itself. */
   client_id: string | null
@@ -22,6 +25,8 @@ export interface LocalTrip extends TripFields {
 
 export interface LocalCatch extends CatchFields {
   local_id: string
+  /** See LocalTrip.user_id. */
+  user_id: string | null
   client_id: string | null
   id: string | null
   /** A pending trip's `local_id`, an already-synced trip's server `id`, or null for "no active
@@ -35,6 +40,8 @@ export interface LocalCatch extends CatchFields {
  * retried by the sync engine like any other pending write. */
 export interface PendingTripEnd {
   trip_id: string
+  /** See LocalTrip.user_id. */
+  user_id: string | null
   ended_at: number
   /** The angler's own reading, in Celsius. null when they did not take one. */
   water_temp_c: number | null
@@ -58,6 +65,12 @@ export class WaterlogDb extends Dexie {
     // v2: the angler's waters, mirrored so the trip banner can name and rank them offline.
     this.version(2).stores({
       waterBodies: 'id, name',
+    })
+    // v3: queued rows carry the user who queued them, so a session change can't hand one
+    // angler's catches to the next person who signs in on this device.
+    this.version(3).stores({
+      trips: 'local_id, client_id, id, synced_at, user_id',
+      catches: 'local_id, client_id, id, trip_id, synced_at, caught_at, user_id',
     })
   }
 }

@@ -1,6 +1,7 @@
 import type { Catch, Trip } from '@waterlog/schema'
 import { ulid } from 'ulid'
 import { apiClient } from '../api-client'
+import { getActiveUserId } from '../auth/active-user'
 import type { LocalCatch, LocalTrip, WaterlogDb } from '../db'
 import { getDb } from '../db'
 
@@ -39,13 +40,27 @@ export class WebSyncEngine implements SyncEngine {
   constructor(private readonly db: WaterlogDb = getDb()) {}
 
   async enqueueTrip(draft: TripDraft): Promise<string> {
-    const row: LocalTrip = { ...draft, local_id: crypto.randomUUID(), client_id: ulid(), id: null, synced_at: null }
+    const row: LocalTrip = {
+      ...draft,
+      local_id: crypto.randomUUID(),
+      user_id: getActiveUserId(),
+      client_id: ulid(),
+      id: null,
+      synced_at: null,
+    }
     await this.db.trips.put(row)
     return row.local_id
   }
 
   async enqueueCatch(draft: CatchDraft): Promise<string> {
-    const row: LocalCatch = { ...draft, local_id: crypto.randomUUID(), client_id: ulid(), id: null, synced_at: null }
+    const row: LocalCatch = {
+      ...draft,
+      local_id: crypto.randomUUID(),
+      user_id: getActiveUserId(),
+      client_id: ulid(),
+      id: null,
+      synced_at: null,
+    }
     await this.db.catches.put(row)
     return row.local_id
   }
@@ -58,7 +73,12 @@ export class WebSyncEngine implements SyncEngine {
     if (trip.id) {
       // Already synced — /api/sync only inserts, so the end has to go through the dedicated
       // endpoint. Queue it; flush() drains this alongside the regular batch.
-      await this.db.pendingTripEnds.put({ trip_id: trip.id, ended_at: endedAt, water_temp_c: waterTempC })
+      await this.db.pendingTripEnds.put({
+        trip_id: trip.id,
+        user_id: trip.user_id ?? getActiveUserId(),
+        ended_at: endedAt,
+        water_temp_c: waterTempC,
+      })
     }
     // else: unsynced — the ended_at just written above rides along in this trip's first
     // INSERT, no separate call needed.
@@ -68,7 +88,16 @@ export class WebSyncEngine implements SyncEngine {
     let pushed = 0
     let failed = 0
 
-    for (const end of await this.db.pendingTripEnds.toArray()) {
+    // Rows belong to the angler who queued them. Anyone else signing in on this device leaves
+    // them alone — they flush when their own owner signs back in, rather than being filed under
+    // the wrong account, which is unrecoverable once the server has them. A null stamp predates
+    // v3 (or was queued before /api/me answered) and is adopted by whoever flushes first: on a
+    // one-angler device that is right, and no better answer exists.
+    const activeUserId = getActiveUserId()
+    const isMine = (row: { user_id: string | null }): boolean =>
+      row.user_id === null || row.user_id === activeUserId
+
+    for (const end of (await this.db.pendingTripEnds.toArray()).filter(isMine)) {
       try {
         await apiClient.endTrip(end.trip_id, end.ended_at, end.water_temp_c)
         await this.db.pendingTripEnds.delete(end.trip_id)
@@ -78,8 +107,8 @@ export class WebSyncEngine implements SyncEngine {
       }
     }
 
-    const pendingTrips = await this.db.trips.filter((t) => t.synced_at === null).toArray()
-    const pendingCatches = await this.db.catches.filter((c) => c.synced_at === null).toArray()
+    const pendingTrips = await this.db.trips.filter((t) => t.synced_at === null && isMine(t)).toArray()
+    const pendingCatches = await this.db.catches.filter((c) => c.synced_at === null && isMine(c)).toArray()
     if (pendingTrips.length === 0 && pendingCatches.length === 0) return { pushed, failed }
 
     // A pending catch's trip_id may be another pending trip's local_id (the server hasn't
@@ -128,11 +157,12 @@ export class WebSyncEngine implements SyncEngine {
     for (const trip of response.trips) {
       const local = pendingTrips.find((t) => t.client_id === trip.client_id)
       if (local) {
-        await this.db.trips.update(local.local_id, { id: trip.id, synced_at: now })
+        // Stamp on the way through, so an adopted legacy row stops being ambiguous.
+        await this.db.trips.update(local.local_id, { id: trip.id, synced_at: now, user_id: activeUserId })
       } else {
         // A trip the server created that this device never enqueued (an orphan-catch trip) —
         // mirror it locally so the journal and any catch referencing it can resolve it.
-        await this.db.trips.put({ ...trip, local_id: trip.id, synced_at: now })
+        await this.db.trips.put({ ...trip, local_id: trip.id, user_id: activeUserId, synced_at: now })
       }
       pushed += 1
     }
@@ -140,7 +170,7 @@ export class WebSyncEngine implements SyncEngine {
     for (const c of response.catches) {
       const local = pendingCatches.find((row) => row.client_id === c.client_id)
       if (!local) continue
-      await this.db.catches.update(local.local_id, { id: c.id, trip_id: c.trip_id, synced_at: now })
+      await this.db.catches.update(local.local_id, { id: c.id, trip_id: c.trip_id, synced_at: now, user_id: activeUserId })
       pushed += 1
     }
 

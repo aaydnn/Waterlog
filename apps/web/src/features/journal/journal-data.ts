@@ -1,5 +1,6 @@
 import type { JournalEntry, JournalPage } from '@waterlog/schema'
 import { ApiError, apiClient, type JournalQuery } from '../../lib/api-client'
+import { getActiveUserId } from '../../lib/auth/active-user'
 import type { WaterlogDb } from '../../lib/db'
 
 export interface JournalResult extends JournalPage {
@@ -12,9 +13,13 @@ export interface JournalResult extends JournalPage {
  * `listJournal` in workers/api so the two views of the same journal don't disagree on what a
  * filter means. */
 export async function localJournal(db: WaterlogDb, query: JournalQuery): Promise<JournalEntry[]> {
+  // Scoped like the server's: another angler who signed in on this device must not see these
+  // rows offline either. A null stamp predates the v3 store and belongs to whoever is here.
+  const userId = getActiveUserId()
+  const mine = (row: { user_id: string | null }): boolean => row.user_id === null || row.user_id === userId
   const [catches, trips, waters, lures] = await Promise.all([
-    db.catches.toArray(),
-    db.trips.toArray(),
+    db.catches.filter(mine).toArray(),
+    db.trips.filter(mine).toArray(),
     db.waterBodies.toArray(),
     db.lures.toArray(),
   ])

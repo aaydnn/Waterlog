@@ -29,6 +29,7 @@ describe('getActiveTrip', () => {
     await db.trips.bulkPut([
       {
         local_id: 'older',
+        user_id: null,
         client_id: 'c1',
         id: null,
         water_body_id: null,
@@ -42,6 +43,7 @@ describe('getActiveTrip', () => {
       },
       {
         local_id: 'newer',
+        user_id: null,
         client_id: 'c2',
         id: null,
         water_body_id: null,
@@ -55,6 +57,7 @@ describe('getActiveTrip', () => {
       },
       {
         local_id: 'ended',
+        user_id: null,
         client_id: 'c3',
         id: null,
         water_body_id: null,
@@ -87,6 +90,7 @@ describe('startTrip', () => {
     const engine = fakeEngine()
     await db.trips.put({
       local_id: 'already-active',
+      user_id: null,
       client_id: 'c1',
       id: null,
       water_body_id: null,
@@ -111,6 +115,7 @@ describe('endActiveTrip', () => {
     const engine = fakeEngine()
     await db.trips.put({
       local_id: 'active',
+      user_id: null,
       client_id: 'c1',
       id: null,
       water_body_id: null,
@@ -137,6 +142,7 @@ describe('endActiveTrip', () => {
 describe('tripReferenceFor', () => {
   const base = {
     local_id: 'loc1',
+    user_id: null,
     client_id: 'cli1',
     water_body_id: null,
     started_at: 0,

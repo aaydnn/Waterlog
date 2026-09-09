@@ -1,9 +1,14 @@
+import { getActiveUserId } from '../../lib/auth/active-user'
 import type { LocalTrip, WaterlogDb } from '../../lib/db'
 import type { SyncEngine, TripDraft } from '../../lib/sync/sync-engine'
 
 /** The most recently started trip that hasn't been ended yet, or null (F2: start/stop wrapper). */
 export async function getActiveTrip(db: WaterlogDb): Promise<LocalTrip | null> {
-  const open = await db.trips.filter((t) => t.ended_at === null).toArray()
+  // Never resume a trip another angler left open on this device.
+  const userId = getActiveUserId()
+  const open = await db.trips
+    .filter((t) => t.ended_at === null && (t.user_id === null || t.user_id === userId))
+    .toArray()
   if (open.length === 0) return null
   return open.reduce((latest, t) => (t.started_at > latest.started_at ? t : latest))
 }

@@ -150,6 +150,7 @@ describe('Journal (F3)', () => {
     const db = freshDb()
     await db.trips.put({
       local_id: 'trp_local',
+      user_id: null,
       client_id: 'tc1',
       id: null,
       water_body_id: 'wb_norris',
@@ -177,6 +178,7 @@ describe('Journal (F3)', () => {
     })
     await db.catches.put({
       local_id: 'cat_local',
+      user_id: null,
       client_id: 'cc1',
       id: null,
       trip_id: 'trp_local',

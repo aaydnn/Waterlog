@@ -22,3 +22,20 @@
   min-height: 100dvh;
   background: var(--navy);
 }
+
+.app-header__sign-out {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--bone-48);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.app-header__sign-out:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 2px;
+}

@@ -86,6 +86,7 @@ describe('TripBanner', () => {
     const engine = fakeEngine()
     await db.trips.put({
       local_id: 'active1',
+      user_id: null,
       client_id: 'c1',
       id: null,
       water_body_id: null,

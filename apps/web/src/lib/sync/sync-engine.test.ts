@@ -1,5 +1,6 @@
 import type { Catch, Trip } from '@waterlog/schema'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { setActiveUserId } from '../auth/active-user'
 import { WaterlogDb } from '../db'
 import type { CatchDraft, TripDraft } from './sync-engine'
 import { WebSyncEngine } from './sync-engine'
@@ -282,6 +283,7 @@ describe('WebSyncEngine.endTrip', () => {
     expect((await db.trips.get(localId))!.ended_at).toBe(1_780_003_600_000)
     expect(await db.pendingTripEnds.get('srv_trip_end')).toEqual({
       trip_id: 'srv_trip_end',
+      user_id: null,
       ended_at: 1_780_003_600_000,
       water_temp_c: null,
     })
@@ -319,5 +321,82 @@ describe('WebSyncEngine.endTrip', () => {
     const result = await engine.flush()
     expect(result).toEqual({ pushed: 0, failed: 1 })
     expect(await db.pendingTripEnds.count()).toBe(1)
+  })
+})
+
+describe('WebSyncEngine queue ownership', () => {
+  afterEach(() => setActiveUserId(null))
+
+  it('stamps queued rows with the angler who logged them', async () => {
+    setActiveUserId('usr_ayden')
+    const db = freshDb()
+    const engine = new WebSyncEngine(db)
+
+    const tripLocalId = await engine.enqueueTrip(tripDraft())
+    const catchLocalId = await engine.enqueueCatch(catchDraft())
+
+    expect((await db.trips.get(tripLocalId))!.user_id).toBe('usr_ayden')
+    expect((await db.catches.get(catchLocalId))!.user_id).toBe('usr_ayden')
+  })
+
+  it("never sends another angler's queued catches when someone else signs in", async () => {
+    const db = freshDb()
+
+    setActiveUserId('usr_first')
+    const firstEngine = new WebSyncEngine(db)
+    await firstEngine.enqueueCatch(catchDraft({ species: 'largemouth_bass' }))
+
+    // A second angler signs in on the same phone and their app flushes.
+    setActiveUserId('usr_second')
+    const fetchMock = mockFetchOnce({ trips: [], catches: [], errors: [] })
+    const result = await new WebSyncEngine(db).flush()
+
+    expect(fetchMock).not.toHaveBeenCalled() // nothing of theirs to push
+    expect(result).toEqual({ pushed: 0, failed: 0 })
+    // The first angler's catch is untouched, still queued, still theirs.
+    const queued = await db.catches.toArray()
+    expect(queued).toHaveLength(1)
+    expect(queued[0]).toMatchObject({ user_id: 'usr_first', synced_at: null })
+  })
+
+  it('sends them once their own owner is back', async () => {
+    const db = freshDb()
+    setActiveUserId('usr_first')
+    await new WebSyncEngine(db).enqueueCatch(catchDraft())
+
+    setActiveUserId('usr_second')
+    mockFetchOnce({ trips: [], catches: [], errors: [] })
+    await new WebSyncEngine(db).flush()
+
+    setActiveUserId('usr_first')
+    mockFetchOnce({
+      trips: [],
+      catches: [{ ...serverCatch(), client_id: (await db.catches.toArray())[0]!.client_id! }],
+      errors: [],
+    })
+    const result = await new WebSyncEngine(db).flush()
+
+    expect(result.pushed).toBe(1)
+    expect((await db.catches.toArray())[0]!.synced_at).not.toBeNull()
+  })
+
+  it('adopts an unstamped row from before the queue tracked owners, and stamps it', async () => {
+    const db = freshDb()
+    // A row written by a pre-v3 client: no owner recorded, and no way to recover one.
+    await db.catches.put({
+      ...catchDraft(),
+      local_id: 'legacy_1',
+      user_id: null,
+      client_id: 'legacy_client_1',
+      id: null,
+      synced_at: null,
+    })
+
+    setActiveUserId('usr_ayden')
+    mockFetchOnce({ trips: [], catches: [{ ...serverCatch(), client_id: 'legacy_client_1' }], errors: [] })
+    const result = await new WebSyncEngine(db).flush()
+
+    expect(result.pushed).toBe(1)
+    expect(await db.catches.get('legacy_1')).toMatchObject({ user_id: 'usr_ayden' })
   })
 })

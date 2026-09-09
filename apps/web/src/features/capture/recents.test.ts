@@ -12,6 +12,7 @@ function freshDb(): WaterlogDb {
 function catchRow(overrides: Partial<LocalCatch> = {}): LocalCatch {
   return {
     local_id: crypto.randomUUID(),
+    user_id: null,
     client_id: crypto.randomUUID(),
     id: null,
     trip_id: null,

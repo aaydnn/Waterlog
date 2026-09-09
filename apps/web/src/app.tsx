@@ -7,6 +7,7 @@ import { Journal } from './features/journal/journal'
 import { StatsView } from './features/stats/stats-view'
 import { TripBanner } from './features/trips/trip-banner'
 import { setUnauthorizedHandler } from './lib/api-client'
+import { setActiveUserId } from './lib/auth/active-user'
 import type { AuthProvider } from './lib/auth/auth-provider'
 import { WebAuthProvider } from './lib/auth/auth-provider'
 import { startAutoFlush } from './lib/sync/auto-flush'
@@ -34,6 +35,9 @@ export function App({ engine, auth = new WebAuthProvider() }: AppProps = {}) {
   const loadSession = useCallback(async () => {
     try {
       const user = await auth.currentUser()
+      // Before the queue is touched: rows are stamped with whoever this is, and a flush only
+      // sends rows already stamped for them.
+      setActiveUserId(user?.id ?? null)
       setSession(user ? { user } : 'signed-out')
     } catch {
       // Offline or the API is down: an existing session is still valid, and the app is
@@ -48,13 +52,35 @@ export function App({ engine, auth = new WebAuthProvider() }: AppProps = {}) {
 
   // One place decides what a 401 means, wherever it surfaces: the session is gone, sign in.
   useEffect(() => {
-    setUnauthorizedHandler(() => setSession('signed-out'))
+    setUnauthorizedHandler(() => {
+      setActiveUserId(null)
+      setSession('signed-out')
+    })
     return () => setUnauthorizedHandler(null)
   }, [])
 
-  // Anything queued while offline or signed out drains on mount, on reconnect, and whenever the
-  // app comes back to the foreground — the queue must never depend on the angler noticing.
-  useEffect(() => startAutoFlush(engine ?? new WebSyncEngine()), [engine])
+  // Anything queued while the angler was offline drains on mount, on reconnect, and whenever the
+  // app comes back to the foreground — the queue must never depend on them noticing. Only once
+  // there's a session: flushing before one would just spend the battery on 401s, and the queue
+  // is stamped per user, so it needs to know who is here first.
+  const signedIn = typeof session === 'object'
+  useEffect(() => {
+    if (!signedIn) return
+    return startAutoFlush(engine ?? new WebSyncEngine())
+  }, [engine, signedIn])
+
+  async function onSignOut() {
+    // Deliberately not clearing the queue: unsynced catches belong to the angler who logged
+    // them and are stamped with their id, so they wait here for them rather than being lost or
+    // handed to whoever signs in next.
+    try {
+      await auth.signOut()
+    } catch {
+      // Already gone server-side, or offline — either way this device is done with the session.
+    }
+    setActiveUserId(null)
+    setSession('signed-out')
+  }
 
   if (session === 'unknown') return <div className="app-boot" aria-hidden="true" />
   if (session === 'signed-out') return <SignIn auth={auth} />
@@ -65,6 +91,9 @@ export function App({ engine, auth = new WebAuthProvider() }: AppProps = {}) {
         <h1>
           <Wordmark />
         </h1>
+        <button type="button" className="app-header__sign-out" onClick={() => void onSignOut()}>
+          Sign out
+        </button>
       </header>
       <TripBanner />
       {view === 'journal' ? <Journal /> : <StatsView />}

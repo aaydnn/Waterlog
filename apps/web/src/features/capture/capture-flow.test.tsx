@@ -20,7 +20,14 @@ function fakeEngine(db: WaterlogDb, { reachesServer = true } = {}): SyncEngine {
   return {
     enqueueTrip: vi.fn<(draft: TripDraft) => Promise<string>>().mockResolvedValue('trip_local_1'),
     enqueueCatch: vi.fn<(draft: CatchDraft) => Promise<string>>().mockImplementation(async (draft) => {
-      await db.catches.put({ ...draft, local_id: 'catch_local_1', client_id: 'catch_client_1', id: null, synced_at: null })
+      await db.catches.put({
+        ...draft,
+        local_id: 'catch_local_1',
+        user_id: 'u1',
+        client_id: 'catch_client_1',
+        id: null,
+        synced_at: null,
+      })
       return 'catch_local_1'
     }),
     endTrip: vi.fn<(localId: string, endedAt: number) => Promise<void>>(),
@@ -159,6 +166,7 @@ describe('CaptureFlow (F1: ten-second capture)', () => {
     const db = freshDb()
     await db.catches.put({
       local_id: 'prior1',
+      user_id: null,
       client_id: 'c1',
       id: 'srv1',
       trip_id: null,
