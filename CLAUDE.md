@@ -8,9 +8,11 @@ pulls out the rules that must never be silently violated.
 ## Non-negotiable build rules
 
 - **Work epic-by-epic.** Don't start the next epic until the current one's acceptance criteria
-  (see packet §10) pass. Current epic: **2 — Enrichment**. Its four automated acceptance
-  criteria pass; see `docs/epic-2-acceptance.md` for evidence and release notes. Deployment
-  and founder-water field validation remain pending. Epic 1 (Capture & Sync) is done.
+  (see packet §10) pass. Current epic: **3 — Journal & Stats**. Its acceptance criterion
+  (numbers reconcile with raw SQL) passes — see `docs/epic-3-acceptance.md` for the spot-check
+  and the gaps it carries into Epic 4. Epics 1 (Capture & Sync) and 2 (Enrichment) are done and
+  deployed; Epic 2's evidence is in `docs/epic-2-acceptance.md`. Real-water validation — one
+  real catch, one real skunked trip — is still open for both.
 - **Never invent payload shapes.** All client/server payload shapes live in `packages/schema`
   (Zod), imported by both `apps/web` and every `workers/*`. Extend it first; never redefine a
   shape locally.
