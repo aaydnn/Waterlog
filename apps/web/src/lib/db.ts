@@ -16,6 +16,9 @@ export interface LocalTrip extends TripFields {
   /** Who queued this row. null on rows written before v3, which the next user to flush adopts
    * — on a single-angler device that is the right answer, and it is the only one available. */
   user_id: string | null
+  /** "Still fishing" silences the F2 auto-close prompt until this time. Local-only: it is a UI
+   * decision about when to ask again, not something the server has any use for. */
+  snoozed_until?: number | null
   /** null only for a trip the server created (an orphan-catch trip) that this device never
    * enqueued itself. */
   client_id: string | null

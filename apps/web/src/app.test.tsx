@@ -38,11 +38,26 @@ const idleEngine: SyncEngine = {
   flush: vi.fn().mockResolvedValue({ pushed: 0, failed: 0 }),
 } as unknown as SyncEngine
 
-/** Every view the shell renders reaches for the API; nothing here is testing those. */
+/** Every view the shell renders reaches for the API; nothing here is testing those. Shapes are
+ * per-endpoint on purpose — one catch-all body would hand the stats view a journal page and
+ * blow up inside it, which says nothing about the shell. */
 function mockQuietApi() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ entries: [], next_cursor: null }) })),
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      const body = url.includes('/api/stats')
+        ? {
+            totals: { catches: 0, trips: 0, hours_on_water: 0, skunked_trips: 0, species: 0, waters: 0 },
+            by_species: [],
+            by_month: [],
+            by_water: [],
+          }
+        : url.includes('/api/water-bodies')
+          ? { water_bodies: [] }
+          : { entries: [], next_cursor: null }
+      return { ok: true, status: 200, json: async () => body }
+    }),
   )
 }
 

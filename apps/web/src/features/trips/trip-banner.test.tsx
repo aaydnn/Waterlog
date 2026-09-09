@@ -185,3 +185,82 @@ describe('TripBanner', () => {
     expect(await screen.findByText(/Could not add that water/)).toBeInTheDocument()
   })
 })
+
+describe('TripBanner auto-close (F2)', () => {
+  const SIX_HOURS = 6 * 60 * 60 * 1000
+
+  async function seedForgottenTrip(db: WaterlogDb, startedAt: number) {
+    await db.trips.put({
+      local_id: 'forgotten',
+      user_id: null,
+      client_id: 'c_forgotten',
+      id: null,
+      water_body_id: null,
+      water_temp_c: null,
+      started_at: startedAt,
+      ended_at: null,
+      auto_created: 0,
+      planned: 0,
+      notes: null,
+      synced_at: null,
+    })
+  }
+
+  it('asks about a trip nobody has touched in six hours', async () => {
+    mockOffline()
+    const db = freshDb()
+    await seedForgottenTrip(db, Date.now() - SIX_HOURS - 60_000)
+    render(<TripBanner engine={fakeEngine()} db={db} />)
+
+    expect(await screen.findByText(/Nothing logged in a while/)).toBeInTheDocument()
+    // The running banner is replaced by the question, not crowded by it.
+    expect(screen.queryByRole('button', { name: 'End trip' })).not.toBeInTheDocument()
+  })
+
+  it('ends it at the last thing that happened, not at the moment we noticed', async () => {
+    mockOffline()
+    const db = freshDb()
+    const startedAt = Date.now() - 20 * 60 * 60 * 1000
+    await seedForgottenTrip(db, startedAt)
+    const engine = fakeEngine()
+    const user = userEvent.setup()
+    render(<TripBanner engine={engine} db={db} />)
+
+    await screen.findByText(/Nothing logged in a while/)
+    await user.click(screen.getByRole('button', { name: /^End at/ }))
+
+    await waitFor(() => expect(engine.endTrip).toHaveBeenCalledTimes(1))
+    const [, endedAt] = (engine.endTrip as ReturnType<typeof vi.fn>).mock.calls[0]!
+    // A trip left running overnight did not gain fourteen hours of fishing. With no catches the
+    // floor applies, so it lands an hour after the start rather than at zero — a skunk that
+    // vanishes from the denominator is worse than one measured roughly.
+    expect(endedAt).toBe(startedAt + 60 * 60 * 1000)
+    expect(await screen.findByRole('button', { name: 'Start trip' })).toBeInTheDocument()
+  })
+
+  it('takes "Still fishing" for an answer and stops asking', async () => {
+    mockOffline()
+    const db = freshDb()
+    await seedForgottenTrip(db, Date.now() - SIX_HOURS - 60_000)
+    const user = userEvent.setup()
+    render(<TripBanner engine={fakeEngine()} db={db} />)
+
+    await screen.findByText(/Nothing logged in a while/)
+    await user.click(screen.getByRole('button', { name: 'Still fishing' }))
+
+    // Back to the running banner, with the trip still open.
+    expect(await screen.findByRole('button', { name: 'End trip' })).toBeInTheDocument()
+    expect(screen.queryByText(/Nothing logged in a while/)).not.toBeInTheDocument()
+    expect((await db.trips.get('forgotten'))!.snoozed_until).toBeGreaterThan(Date.now())
+  })
+
+  it('leaves a trip that is going normally alone', async () => {
+    mockOffline()
+    const db = freshDb()
+    await seedForgottenTrip(db, Date.now() - 60 * 60 * 1000)
+    render(<TripBanner engine={fakeEngine()} db={db} />)
+
+    expect(await screen.findByRole('button', { name: 'End trip' })).toBeInTheDocument()
+    expect(screen.queryByText(/did this trip end/)).not.toBeInTheDocument()
+  })
+})

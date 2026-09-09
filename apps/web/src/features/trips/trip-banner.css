@@ -185,3 +185,22 @@
   font-size: 12px;
   color: var(--bone-72);
 }
+
+/* Auto-close prompt (F2). Replaces the running banner rather than crowding it: it is a question,
+   and the answer is the only thing to do with it. */
+.trip-banner--prompt {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.trip-banner--prompt .trip-banner__text {
+  flex: 1 1 100%;
+  white-space: normal;
+  text-wrap: pretty;
+}
+
+.trip-banner__prompt-actions {
+  display: flex;
+  gap: 8px;
+  flex: 1 1 auto;
+}
