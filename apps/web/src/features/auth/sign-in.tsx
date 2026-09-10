@@ -6,12 +6,15 @@ import './sign-in.css'
 
 export interface SignInProps {
   auth?: AuthProvider
+  /** This device locked itself out but the server hasn't confirmed the sign-out yet. Saying so
+   * beats implying the session is definitely dead when it isn't. */
+  signOutPending?: boolean
 }
 
 /** The gate in front of everything. Capture still works offline once you're through it — the
  * session cookie outlives the trip — but a first run has to sign in somewhere, and until now
  * the only way was typing /api/auth/google into the address bar. */
-export function SignIn({ auth = new WebAuthProvider() }: SignInProps) {
+export function SignIn({ auth = new WebAuthProvider(), signOutPending = false }: SignInProps) {
   const [email, setEmail] = useState('')
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -38,6 +41,13 @@ export function SignIn({ auth = new WebAuthProvider() }: SignInProps) {
         <Wordmark />
       </h1>
       <p className="sign-in__pitch">Your patterns. Proven.</p>
+
+      {signOutPending && (
+        <p className="sign-in__pending" role="status">
+          You're signed out on this device. We'll finish signing you out everywhere once you're
+          back online.
+        </p>
+      )}
 
       {sentTo ? (
         <p className="sign-in__sent" role="status">

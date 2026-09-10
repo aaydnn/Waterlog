@@ -1,5 +1,6 @@
 import type { Catch, Trip } from '@waterlog/schema'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { setSessionMismatchHandler } from '../api-client'
 import { setActiveUserId } from '../auth/active-user'
 import { WaterlogDb } from '../db'
 import type { CatchDraft, TripDraft } from './sync-engine'
@@ -398,5 +399,72 @@ describe('WebSyncEngine queue ownership', () => {
 
     expect(result.pushed).toBe(1)
     expect(await db.catches.get('legacy_1')).toMatchObject({ user_id: 'usr_ayden' })
+  })
+})
+
+describe('WebSyncEngine flush under a changed session', () => {
+  afterEach(() => {
+    setActiveUserId(null)
+    setSessionMismatchHandler(null)
+  })
+
+  it('names the account it is flushing for on every write', async () => {
+    const db = freshDb()
+    setActiveUserId('usr_a')
+    const engine = new WebSyncEngine(db)
+    await engine.enqueueCatch(catchDraft())
+
+    const fetchSpy = mockFetchOnce({ trips: [], catches: [], errors: [] })
+    await engine.flush()
+
+    const headers = fetchSpy.mock.calls[0]![1].headers as Record<string, string>
+    expect(headers['X-Waterlog-User']).toBe('usr_a')
+  })
+
+  it('leaves everything queued and re-resolves the session when the server says it is somebody else', async () => {
+    const db = freshDb()
+    setActiveUserId('usr_a')
+    const engine = new WebSyncEngine(db)
+    const localId = await engine.enqueueCatch(catchDraft({ notes: 'the brush pile off the point' }))
+
+    // Another tab signed out and back in as B; this tab still thinks it is A.
+    const resolved = vi.fn(() => setActiveUserId('usr_b'))
+    setSessionMismatchHandler(resolved)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: 'session_mismatch' }) }),
+    )
+
+    const result = await engine.flush()
+
+    expect(result).toEqual({ pushed: 0, failed: 1 })
+    expect(resolved).toHaveBeenCalledTimes(1)
+    // A's private notes are still A's, still unsent, still unsynced.
+    const row = (await db.catches.get(localId))!
+    expect(row.user_id).toBe('usr_a')
+    expect(row.synced_at).toBeNull()
+    expect(row.id).toBeNull()
+  })
+
+  it('stops the flush at the first rejected trip end rather than pushing the rest', async () => {
+    const db = freshDb()
+    setActiveUserId('usr_a')
+    await db.pendingTripEnds.bulkPut([
+      { trip_id: 'srv_t1', user_id: 'usr_a', ended_at: 1, water_temp_c: null },
+      { trip_id: 'srv_t2', user_id: 'usr_a', ended_at: 2, water_temp_c: null },
+    ])
+    setSessionMismatchHandler(() => setActiveUserId('usr_b'))
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'session_mismatch' }),
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const result = await new WebSyncEngine(db).flush()
+
+    expect(result).toEqual({ pushed: 0, failed: 2 })
+    expect(fetchSpy).toHaveBeenCalledTimes(1) // the second end was never attempted
+    expect(await db.pendingTripEnds.count()).toBe(2)
   })
 })
