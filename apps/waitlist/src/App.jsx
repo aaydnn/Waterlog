@@ -116,9 +116,11 @@ function WaitlistForm() {
       }
 
       // Non-200: keep their input intact, show a plain explanation.
+      // There is no "already on the list" case any more — the server answers 200 whether the
+      // address is new or known, so it can't be used to test who has signed up.
       let message = 'Something went wrong on our end. Try again in a minute.'
-      if (res.status === 409) {
-        message = "You're already on the list — good instincts."
+      if (res.status === 429) {
+        message = "That's a lot of casts. Give it a few minutes and try again."
       } else if (res.status === 400) {
         message = 'That input got rejected. Check the email and try again.'
       }

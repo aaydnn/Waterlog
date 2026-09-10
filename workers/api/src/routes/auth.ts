@@ -4,8 +4,21 @@ import { z } from 'zod'
 import type { AppEnv } from '../env'
 import { generateToken } from '../lib/crypto'
 import { exchangeGoogleCode, googleAuthorizeUrl } from '../lib/google'
-import { createLoginToken, consumeLoginToken } from '../lib/magic-link'
-import { getMailer } from '../lib/mailer'
+import {
+  createLoginToken,
+  consumeLoginToken,
+  normalizeEmail,
+  MAX_EMAIL_LENGTH,
+} from '../lib/magic-link'
+import { getMailer, MailerNotConfiguredError } from '../lib/mailer'
+import {
+  consumeRateLimit,
+  magicLinkEmailBucket,
+  magicLinkIpBucket,
+  MAGIC_LINK_PER_EMAIL,
+  MAGIC_LINK_PER_IP,
+  UNKNOWN_IP,
+} from '../lib/rate-limit'
 import { clearSessionCookie, readSessionCookie, setSessionCookie } from '../lib/session-cookie'
 import { createSession, destroySession } from '../lib/sessions'
 import { getOrCreateUserByEmail } from '../lib/users'
@@ -14,12 +27,43 @@ const STATE_COOKIE = 'oauth_state'
 
 export const authRoutes = new Hono<AppEnv>()
 
-const magicLinkRequest = z.object({ email: z.string().email() })
+// Bounded before anything touches the DB: an address longer than RFC 5321 allows is not a real
+// mailbox, and an unbounded string would otherwise be hashed, stored, and mailed.
+const magicLinkRequest = z.object({
+  email: z.string().trim().toLowerCase().max(MAX_EMAIL_LENGTH).email(),
+})
 
 authRoutes.post('/magic-link', async (c) => {
   const parsed = magicLinkRequest.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'invalid email' }, 400)
-  const email = parsed.data.email
+  const email = normalizeEmail(parsed.data.email)
+
+  // Resolved before the token is minted. A misconfigured environment must not leave a live
+  // credential in the table for a link nobody could receive — and must never fall through to a
+  // mailer that prints the link to the log.
+  let mailer
+  try {
+    mailer = getMailer(c.env)
+  } catch (err) {
+    if (!(err instanceof MailerNotConfiguredError)) throw err
+    console.error(err.message)
+    return c.json({ error: 'sign-in email is unavailable' }, 503)
+  }
+
+  // Two quotas, IP first (the broader one), then the address. Both are checked before a token
+  // exists, so a limited request creates nothing and sends nothing. The body is generic and
+  // identical in both cases: a 429 must not tell a caller which limit they tripped, since the
+  // per-address one only trips for an address they were already naming.
+  const ip = c.req.header('CF-Connecting-IP') ?? UNKNOWN_IP
+  const byIp = await consumeRateLimit(c.env.DB, magicLinkIpBucket(ip), MAGIC_LINK_PER_IP)
+  const limit = byIp.allowed
+    ? await consumeRateLimit(c.env.DB, await magicLinkEmailBucket(email), MAGIC_LINK_PER_EMAIL)
+    : byIp
+  if (!limit.allowed) {
+    return c.json({ error: 'too many requests' }, 429, {
+      'retry-after': String(limit.retryAfterSeconds),
+    })
+  }
 
   const token = await createLoginToken(c.env.DB, email)
   // Built from APP_URL, not c.req.url: in production the request reaches this Worker through
@@ -28,7 +72,7 @@ authRoutes.post('/magic-link', async (c) => {
   const verifyUrl = new URL('/api/auth/magic-link/verify', c.env.APP_URL)
   verifyUrl.searchParams.set('token', token)
 
-  await getMailer(c.env).send({
+  await mailer.send({
     to: email,
     subject: 'Sign in to WaterLog',
     text: `Click to sign in (link expires in 10 minutes):\n${verifyUrl}`,
