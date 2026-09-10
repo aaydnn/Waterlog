@@ -24,5 +24,14 @@ queue = "waterlog-enrich"
 APP_URL = "https://waterlog-web.pages.dev"
 # Auth secrets are placeholders here. In real environments set them with
 #   wrangler secret put GOOGLE_CLIENT_SECRET
+#   wrangler secret put RESEND_API_KEY
 # etc. — never commit real values.
 GOOGLE_CLIENT_ID = "893952815211-fa5p6mg1afqdee979rgdka5drm2bqgas.apps.googleusercontent.com"
+#
+# ALLOW_CONSOLE_MAIL deliberately does NOT appear in this file. It permits the ConsoleMailer,
+# which prints the whole magic link — a bearer credential — to the log. Every environment that
+# loads this file is a deployed one, so setting it here would reintroduce exactly the failure
+# mode the fail-closed mailer exists to prevent. It belongs in `.dev.vars` (see
+# `.dev.vars.example`) and in the test harness's miniflare bindings, nowhere else.
+# Without it and without RESEND_API_KEY, POST /api/auth/magic-link answers 503 and mints no
+# token — deployments must have the RESEND_API_KEY secret set.

@@ -45,8 +45,32 @@ export class ResendMailer implements Mailer {
   }
 }
 
-/** RESEND_API_KEY is a secret, absent in local dev and in tests — both
- * fall back to the console mailer. */
+/** Thrown when no mailer can be built. Callers turn this into a 503 — never into a
+ * console-logged sign-in link. */
+export class MailerNotConfiguredError extends Error {
+  constructor() {
+    super(
+      'no mailer configured: set the RESEND_API_KEY secret, or set ALLOW_CONSOLE_MAIL="true" ' +
+        '(local dev only, in .dev.vars) to print sign-in links to the console instead',
+    )
+    this.name = 'MailerNotConfiguredError'
+  }
+}
+
+/**
+ * Resolves the mailer, failing closed.
+ *
+ * The console mailer prints the whole magic link, and that link is a bearer credential: anyone
+ * who can read the log can sign in as that address. It used to be the automatic fallback
+ * whenever RESEND_API_KEY was absent, so a secret that failed to propagate to production would
+ * have silently rerouted every sign-in link into Worker logs. It now takes an explicit opt-in
+ * that is only ever set locally (`workers/api/.dev.vars`), never in wrangler.toml's [vars].
+ *
+ * Precedence is deliberate: a real key always wins, so ALLOW_CONSOLE_MAIL left set somewhere it
+ * should not be cannot downgrade a configured environment to console logging.
+ */
 export function getMailer(env: ApiBindings): Mailer {
-  return env.RESEND_API_KEY ? new ResendMailer(env.RESEND_API_KEY) : new ConsoleMailer()
+  if (env.RESEND_API_KEY) return new ResendMailer(env.RESEND_API_KEY)
+  if (env.ALLOW_CONSOLE_MAIL === 'true') return new ConsoleMailer()
+  throw new MailerNotConfiguredError()
 }
