@@ -24,6 +24,20 @@ export async function listLures(db: D1Database, userId: string): Promise<Lure[]>
   return results
 }
 
+/** Ownership check for the capture path, the twin of `waterBodyExists`: a catch may only
+ * reference a lure the caller owns. Without it a crafted `lure_id` both mislabels the catch and
+ * — through the journal's join — reads back another angler's private lure name.
+ *
+ * Ownership only, deliberately: unlike a water body, a retired or soft-deleted lure is still the
+ * angler's own history, and a catch queued offline before the lure was retired must still sync. */
+export async function lureExists(db: D1Database, userId: string, id: string): Promise<boolean> {
+  const row = await db
+    .prepare('SELECT 1 AS ok FROM lures WHERE id = ? AND user_id = ?')
+    .bind(id, userId)
+    .first<{ ok: number }>()
+  return row !== null
+}
+
 export async function createLure(db: D1Database, userId: string, input: LureCreateInput): Promise<Lure> {
   const now = Date.now()
   const lure: Lure = {

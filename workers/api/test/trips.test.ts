@@ -4,7 +4,7 @@ import app from '../src/index'
 import { generateToken, sha256Hex } from '../src/lib/crypto'
 import { SESSION_TTL_MS } from '../src/lib/sessions'
 
-async function createUserAndSession(email: string): Promise<{ cookie: string }> {
+async function createUserAndSession(email: string): Promise<{ userId: string; cookie: string }> {
   const userId = crypto.randomUUID()
   const now = Date.now()
   await env.DB.prepare(
@@ -18,7 +18,7 @@ async function createUserAndSession(email: string): Promise<{ cookie: string }> 
     .bind(await sha256Hex(raw), userId, now + SESSION_TTL_MS, now)
     .run()
 
-  return { cookie: `session=${raw}` }
+  return { userId, cookie: `session=${raw}` }
 }
 
 function sync(cookie: string, body: unknown) {
@@ -90,7 +90,9 @@ describe('PATCH /api/trips/:id/end', () => {
     const { trips } = (await syncRes.json()) as { trips: { id: string }[] }
 
     await endTrip(cookie, trips[0]!.id, 1_780_003_600_000)
-    const replay = await endTrip(cookie, trips[0]!.id, 9_999_999_999_999) // a stale/different end time
+    // A stale/different end time — but still a plausible one: a wild timestamp is now refused
+    // outright (see 'refuses to end a trip a year after it started').
+    const replay = await endTrip(cookie, trips[0]!.id, 1_780_010_800_000)
     expect(replay.status).toBe(200)
     const body = (await replay.json()) as { trip: { ended_at: number } }
     expect(body.trip.ended_at).toBe(1_780_003_600_000) // unchanged, not overwritten
@@ -142,5 +144,115 @@ describe('PATCH /api/trips/:id/end', () => {
 
     const res = await endTrip(attacker.cookie, trips[0]!.id, 1_780_003_600_000)
     expect(res.status).toBe(404)
+  })
+})
+
+// Finding 4: the end-trip route is the other door onto trip duration. Without the same ceiling
+// sync applies, a trip left open for months could be closed "now" and bill a year of hourly
+// enrichment (8,760 conditions rows) to a single PATCH.
+describe('PATCH /api/trips/:id/end — bounded trip duration', () => {
+  async function openTrip(cookie: string, startedAt: number, clientId = 'bounded_trip') {
+    const res = await sync(cookie, {
+      trips: [{ client_id: clientId, water_body_id: null, started_at: startedAt, ended_at: null, auto_created: 0, planned: 0, notes: null }],
+    })
+    const { trips } = (await res.json()) as { trips: { id: string }[] }
+    return trips[0]!.id
+  }
+
+  it('clamps a trip ended a year after it started to 48h, closing it rather than stranding it', async () => {
+    const { cookie } = await createUserAndSession('year-long@example.com')
+    const started = Date.now() - 365 * 24 * 3_600_000
+    const tripId = await openTrip(cookie, started)
+
+    const send = vi.spyOn(env.ENRICH_QUEUE, 'send')
+    try {
+      // What the client's "End trip" button actually sends for a trip nobody closed.
+      const res = await endTrip(cookie, tripId, Date.now())
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { trip: { ended_at: number } }
+      expect(body.trip.ended_at).toBe(started + 48 * 3_600_000) // returned clamped, so the client mirrors it
+
+      const row = await env.DB.prepare('SELECT ended_at FROM trips WHERE id = ?').bind(tripId).first<{ ended_at: number | null }>()
+      expect(row!.ended_at).toBe(started + 48 * 3_600_000) // and persisted clamped
+
+      // Bounded work: 48 hours of enrichment, not 8,760.
+      expect(send).toHaveBeenCalledOnce()
+      expect((send.mock.calls[0]![0] as { hour_buckets: number[] }).hour_buckets).toHaveLength(48)
+    } finally { send.mockRestore() }
+  })
+
+  it('refuses an ended_at before the trip started', async () => {
+    const { cookie } = await createUserAndSession('backwards@example.com')
+    const started = Date.now() - 2 * 3_600_000
+    const tripId = await openTrip(cookie, started)
+    const res = await endTrip(cookie, tripId, started - 60_000)
+    expect(res.status).toBe(400)
+  })
+
+  it('refuses an ended_at far in the future', async () => {
+    const { cookie } = await createUserAndSession('future-end@example.com')
+    const started = Date.now() - 3_600_000
+    const tripId = await openTrip(cookie, started)
+    expect((await endTrip(cookie, tripId, Date.now() + 40 * 24 * 3_600_000)).status).toBe(400)
+  })
+
+  it('still accepts a long-but-plausible overnight trip at the 48h ceiling', async () => {
+    const { cookie } = await createUserAndSession('overnighter@example.com')
+    const started = Date.now() - 48 * 3_600_000
+    const tripId = await openTrip(cookie, started)
+    const res = await endTrip(cookie, tripId, started + 48 * 3_600_000)
+    expect(res.status).toBe(200)
+  })
+
+  it('404s before validating, so a bad time on an unknown trip is still a 404', async () => {
+    const { cookie } = await createUserAndSession('unknown-bad-time@example.com')
+    expect((await endTrip(cookie, 'nonexistent', 1)).status).toBe(404)
+  })
+})
+
+// Finding 1: the client stamps the account it queued for; a session that has since changed
+// accounts must not have the write re-homed onto it.
+describe('PATCH /api/trips/:id/end — X-Waterlog-User binding', () => {
+  function endTripAs(cookie: string, tripId: string, endedAt: number, expectedUser?: string) {
+    const headers: Record<string, string> = { 'content-type': 'application/json', cookie }
+    if (expectedUser !== undefined) headers['X-Waterlog-User'] = expectedUser
+    return app.request(
+      `/api/trips/${tripId}/end`,
+      { method: 'PATCH', headers, body: JSON.stringify({ ended_at: endedAt }) },
+      env,
+    )
+  }
+
+  async function openTripFor(cookie: string) {
+    const started = Date.now() - 3_600_000
+    const res = await sync(cookie, {
+      trips: [{ client_id: 'hdr_trip', water_body_id: null, started_at: started, ended_at: null, auto_created: 0, planned: 0, notes: null }],
+    })
+    const { trips } = (await res.json()) as { trips: { id: string }[] }
+    return { tripId: trips[0]!.id, started }
+  }
+
+  it('ends the trip when the header matches the session', async () => {
+    const { cookie, userId } = await createUserAndSession('hdr-match-end@example.com')
+    const { tripId, started } = await openTripFor(cookie)
+    expect((await endTripAs(cookie, tripId, started + 3_600_000, userId)).status).toBe(200)
+  })
+
+  it('409s with session_mismatch when the header names a different account, before any write', async () => {
+    const { cookie } = await createUserAndSession('hdr-mismatch-end@example.com')
+    const { tripId, started } = await openTripFor(cookie)
+
+    const res = await endTripAs(cookie, tripId, started + 3_600_000, 'somebody-else')
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'session_mismatch' })
+
+    const row = await env.DB.prepare('SELECT ended_at FROM trips WHERE id = ?').bind(tripId).first<{ ended_at: number | null }>()
+    expect(row!.ended_at).toBeNull()
+  })
+
+  it('proceeds as before when the header is absent (older clients)', async () => {
+    const { cookie } = await createUserAndSession('hdr-absent-end@example.com')
+    const { tripId, started } = await openTripFor(cookie)
+    expect((await endTripAs(cookie, tripId, started + 3_600_000)).status).toBe(200)
   })
 })

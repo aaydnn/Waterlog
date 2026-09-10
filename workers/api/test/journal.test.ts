@@ -423,3 +423,49 @@ describe('GET /api/journal filter composition (T3.1)', () => {
     expect(second.entries.every((e) => e.water_body_name === 'Norris Lake')).toBe(true)
   })
 })
+
+// Finding 5: the list's LEFT JOINs are owner-scoped, so a row that points at someone else's
+// lure or water (crafted before the write path validated ownership) can't read that name back.
+describe('GET /api/journal — foreign references never resolve to a name', () => {
+  it("shows lure_name null for a catch pointing at another angler's lure", async () => {
+    const victim = await seedAngler(`leak-victim-${crypto.randomUUID()}@example.com`)
+    const attacker = await createUserAndSession(`leak-attacker-${crypto.randomUUID()}@example.com`)
+
+    // Written straight to D1: this is the pre-existing row the API would no longer accept.
+    await insertTrip(attacker.userId, `trp_leak_${attacker.userId}`, null, JUNE_1, JUNE_1 + HOUR)
+    await insertCatch(
+      attacker.userId,
+      `cat_leak_${attacker.userId}`,
+      `trp_leak_${attacker.userId}`,
+      'largemouth_bass',
+      JUNE_1 + 30 * 60 * 1000,
+      `lur_spin_${victim.userId}`,
+    )
+
+    const body = (await (await get('/api/journal', attacker.cookie)).json()) as JournalBody
+    expect(body.entries).toHaveLength(1)
+    expect(body.entries[0]!.lure_name).toBeNull() // not 'War Eagle Spinnerbait'
+  })
+
+  it("shows water_body_name null for a trip pointing at another angler's water", async () => {
+    const victim = await seedAngler(`water-victim-${crypto.randomUUID()}@example.com`)
+    const attacker = await createUserAndSession(`water-attacker-${crypto.randomUUID()}@example.com`)
+
+    await insertTrip(attacker.userId, `trp_wleak_${attacker.userId}`, `wb_norris_${victim.userId}`, JUNE_1, JUNE_1 + HOUR)
+    await insertCatch(
+      attacker.userId,
+      `cat_wleak_${attacker.userId}`,
+      `trp_wleak_${attacker.userId}`,
+      'crappie',
+      JUNE_1 + 30 * 60 * 1000,
+    )
+
+    const body = (await (await get('/api/journal', attacker.cookie)).json()) as JournalBody
+    expect(body.entries[0]!.water_body_name).toBeNull() // not 'Norris Lake'
+
+    const stats = (await (await get('/api/stats', attacker.cookie)).json()) as {
+      by_water: { water_body_name: string | null }[]
+    }
+    expect(stats.by_water.every((w) => w.water_body_name === null)).toBe(true)
+  })
+})

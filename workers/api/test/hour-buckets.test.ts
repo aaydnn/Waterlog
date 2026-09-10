@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeHourBuckets } from '../src/lib/hour-buckets'
+import { MAX_TRIP_HOUR_BUCKETS, computeHourBuckets } from '../src/lib/hour-buckets'
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -36,5 +36,33 @@ describe('computeHourBuckets', () => {
   it('a sub-hour trip yields 1 bucket', () => {
     const start = Date.UTC(2026, 5, 1, 10, 0)
     expect(computeHourBuckets(start, start + 20 * 60 * 1000)).toHaveLength(1)
+  })
+})
+
+// Finding 4: an unbounded bucket list is unbounded enrichment work — one bucket is one
+// conditions row and one round of weather/gauge lookups in the enrich worker.
+describe('computeHourBuckets is bounded', () => {
+  it('clamps a year-long trip to the 48-bucket ceiling instead of 8,760 buckets', () => {
+    const start = Date.UTC(2025, 5, 1, 10, 0)
+    const end = start + 365 * 24 * HOUR_MS
+    const buckets = computeHourBuckets(start, end)
+    expect(buckets).toHaveLength(MAX_TRIP_HOUR_BUCKETS)
+    expect(buckets[0]).toBe(Math.floor(start / HOUR_MS))
+  })
+
+  it('a trip exactly at the maximum is not clamped', () => {
+    const start = Date.UTC(2026, 5, 1, 10, 0)
+    expect(computeHourBuckets(start, start + MAX_TRIP_HOUR_BUCKETS * HOUR_MS)).toHaveLength(
+      MAX_TRIP_HOUR_BUCKETS,
+    )
+  })
+
+  it('never returns buckets for a non-finite start', () => {
+    expect(computeHourBuckets(Number.NaN, Date.now())).toEqual([])
+  })
+
+  it('a reversed range yields one bucket, never a negative count', () => {
+    const start = Date.UTC(2026, 5, 1, 10, 0)
+    expect(computeHourBuckets(start, start - 10 * HOUR_MS)).toHaveLength(1)
   })
 })
