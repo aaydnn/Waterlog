@@ -89,7 +89,24 @@ export class ApiError extends Error {
   }
 }
 
+/** The server rejected a write because the cookie's user isn't the one the caller said it was
+ * writing for — the account changed under this tab. Distinct from a plain 409 so the sync
+ * engine can stop the flush with everything still queued instead of retrying into the wrong
+ * account. */
+export class SessionMismatchError extends ApiError {
+  constructor(path: string) {
+    super(409, `${path} rejected: the signed-in account is not the one this write is for`)
+    this.name = 'SessionMismatchError'
+  }
+}
+
+/** Header naming the user the client believes it is writing for. The server compares it to the
+ * session cookie and answers 409 {"error":"session_mismatch"} when they disagree, which is the
+ * only thing standing between a queue flushed by a stale tab and another angler's account. */
+export const USER_HEADER = 'X-Waterlog-User'
+
 let onUnauthorized: (() => void) | null = null
+let onSessionMismatch: (() => void | Promise<void>) | null = null
 
 /** The app registers one handler so an expired session anywhere — a background sync, a stats
  * fetch — puts the whole app back on the sign-in screen instead of each caller inventing its
@@ -98,14 +115,36 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorized = handler
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** Same idea, one step less final: the session is valid, it just belongs to somebody else now.
+ * The app re-resolves who is actually signed in; nothing is written until it has. */
+export function setSessionMismatchHandler(handler: (() => void | Promise<void>) | null): void {
+  onSessionMismatch = handler
+}
+
+/** Writes that are bound to an account carry it; reads are answered from the cookie alone. */
+async function request<T>(path: string, init?: RequestInit, asUserId?: string | null): Promise<T> {
   const res = await fetch(path, {
     credentials: 'include',
-    headers: { 'content-type': 'application/json' },
     ...init,
+    // Merged after the spread, not before: a caller's own headers (the photo upload's
+    // content-type) must not be able to drop the account this write is bound to.
+    headers: {
+      'content-type': 'application/json',
+      ...(init?.headers as Record<string, string> | undefined),
+      ...(asUserId ? { [USER_HEADER]: asUserId } : {}),
+    },
   })
   if (!res.ok) {
     if (res.status === 401) onUnauthorized?.()
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null
+      if (body?.error === 'session_mismatch') {
+        // Resolve who is really here before returning, so the caller's next decision — and the
+        // UI — are made against the real session rather than the one that just got rejected.
+        await onSessionMismatch?.()
+        throw new SessionMismatchError(path)
+      }
+    }
     throw new ApiError(res.status, `${init?.method ?? 'GET'} ${path} failed (${res.status})`)
   }
   return (await res.json()) as T
@@ -117,8 +156,8 @@ export const apiClient = {
   requestMagicLink: (email: string) =>
     request<{ ok: true }>('/api/auth/magic-link', { method: 'POST', body: JSON.stringify({ email }) }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
-  sync: (body: SyncBatchRequest) =>
-    request<SyncBatchResponse>('/api/sync', { method: 'POST', body: JSON.stringify(body) }),
+  sync: (body: SyncBatchRequest, asUserId: string | null = null) =>
+    request<SyncBatchResponse>('/api/sync', { method: 'POST', body: JSON.stringify(body) }, asUserId),
   listLures: () => request<{ lures: Lure[] }>('/api/lures'),
   createLure: (body: LureCreateRequest) =>
     request<{ lure: Lure }>('/api/lures', { method: 'POST', body: JSON.stringify(body) }),
@@ -135,11 +174,15 @@ export const apiClient = {
   listWaterBodies: () => request<{ water_bodies: WaterBody[] }>('/api/water-bodies'),
   createWaterBody: (body: WaterBodyCreateRequest) =>
     request<{ water_body: WaterBody }>('/api/water-bodies', { method: 'POST', body: JSON.stringify(body) }),
-  endTrip: (tripId: string, endedAt: number, waterTempC: number | null = null) =>
-    request<{ trip: Trip }>(`/api/trips/${tripId}/end`, {
-      method: 'PATCH',
-      body: JSON.stringify({ ended_at: endedAt, water_temp_c: waterTempC }),
-    }),
+  endTrip: (tripId: string, endedAt: number, waterTempC: number | null = null, asUserId: string | null = null) =>
+    request<{ trip: Trip }>(
+      `/api/trips/${tripId}/end`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ ended_at: endedAt, water_temp_c: waterTempC }),
+      },
+      asUserId,
+    ),
   uploadPhoto: (blob: Blob) =>
     request<{ photo_key: string }>('/api/photos', {
       method: 'POST',

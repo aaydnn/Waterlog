@@ -1,7 +1,10 @@
 import type { JournalEntry, JournalPage } from '@waterlog/schema'
 import { ApiError, apiClient, type JournalQuery } from '../../lib/api-client'
 import { getActiveUserId } from '../../lib/auth/active-user'
+import { canAdoptUnowned } from '../../lib/auth/device-accounts'
 import type { WaterlogDb } from '../../lib/db'
+import { cachedLures } from '../../lib/lures'
+import { cachedWaterBodies } from '../../lib/water-bodies'
 
 export interface JournalResult extends JournalPage {
   /** True when the server couldn't be reached and this is the device's own copy: everything
@@ -14,14 +17,17 @@ export interface JournalResult extends JournalPage {
  * filter means. */
 export async function localJournal(db: WaterlogDb, query: JournalQuery): Promise<JournalEntry[]> {
   // Scoped like the server's: another angler who signed in on this device must not see these
-  // rows offline either. A null stamp predates the v3 store and belongs to whoever is here.
+  // rows offline either. A null stamp predates the v3 store; it is shown only on a device a
+  // single account has ever used, where it can only be theirs.
   const userId = getActiveUserId()
-  const mine = (row: { user_id: string | null }): boolean => row.user_id === null || row.user_id === userId
+  const adoptUnowned = canAdoptUnowned(userId)
+  const mine = (row: { user_id: string | null }): boolean =>
+    row.user_id === userId || (row.user_id === null && adoptUnowned)
   const [catches, trips, waters, lures] = await Promise.all([
     db.catches.filter(mine).toArray(),
     db.trips.filter(mine).toArray(),
-    db.waterBodies.toArray(),
-    db.lures.toArray(),
+    cachedWaterBodies(db, userId),
+    cachedLures(db, userId),
   ])
   const tripByRef = new Map(trips.flatMap((t) => (t.id ? [[t.id, t] as const] : [[t.local_id, t] as const])))
   const waterById = new Map(waters.map((w) => [w.id, w]))
