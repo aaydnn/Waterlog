@@ -37,8 +37,11 @@ const ENTRY_SELECT = `
          c.trip_id, t.water_body_id, w.name AS water_body_name
   FROM catches c
   JOIN trips t ON t.id = c.trip_id
-  LEFT JOIN lures l ON l.id = c.lure_id
-  LEFT JOIN water_bodies w ON w.id = t.water_body_id
+  -- Owner-scoped joins, not bare FK joins: a row whose lure_id or water_body_id points at
+  -- another angler's row (crafted, or written before ownership was validated) reads back with a
+  -- null name here instead of leaking that angler's private name into this journal.
+  LEFT JOIN lures l ON l.id = c.lure_id AND l.user_id = c.user_id
+  LEFT JOIN water_bodies w ON w.id = t.water_body_id AND w.user_id = t.user_id
   WHERE c.user_id = ? AND c.deleted_at IS NULL`
 
 /** F3: reverse-chron page of catches with the names a card shows. */
@@ -186,7 +189,7 @@ export async function getStats(db: D1Database, userId: string): Promise<Stats> {
               COUNT(DISTINCT t.id) AS trips,
               COUNT(c.id) AS catches
        FROM trips t
-       LEFT JOIN water_bodies w ON w.id = t.water_body_id
+       LEFT JOIN water_bodies w ON w.id = t.water_body_id AND w.user_id = t.user_id
        LEFT JOIN catches c ON c.trip_id = t.id AND c.deleted_at IS NULL
        WHERE t.user_id = ? AND t.deleted_at IS NULL
        GROUP BY t.water_body_id, w.name

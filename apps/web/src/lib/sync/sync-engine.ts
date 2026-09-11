@@ -1,7 +1,8 @@
 import type { Catch, Trip } from '@waterlog/schema'
 import { ulid } from 'ulid'
-import { apiClient } from '../api-client'
+import { apiClient, SessionMismatchError } from '../api-client'
 import { getActiveUserId } from '../auth/active-user'
+import { canAdoptUnowned } from '../auth/device-accounts'
 import type { LocalCatch, LocalTrip, WaterlogDb } from '../db'
 import { getDb } from '../db'
 
@@ -90,19 +91,31 @@ export class WebSyncEngine implements SyncEngine {
 
     // Rows belong to the angler who queued them. Anyone else signing in on this device leaves
     // them alone — they flush when their own owner signs back in, rather than being filed under
-    // the wrong account, which is unrecoverable once the server has them. A null stamp predates
-    // v3 (or was queued before /api/me answered) and is adopted by whoever flushes first: on a
-    // one-angler device that is right, and no better answer exists.
+    // the wrong account, which is unrecoverable once the server has them.
+    //
+    // Two things guard that. Every write below names the account it is for in X-Waterlog-User,
+    // so a tab whose idea of the session has gone stale (another tab signed out and somebody
+    // else signed in) has its batch rejected instead of misfiled. And a row with no owner at
+    // all — pre-v3, unrecoverable — is only adopted on a device a single account has ever used;
+    // the header can prove who is sending, never that an unowned row is theirs. Elsewhere those
+    // rows stay put: unsent, but not handed to the wrong angler.
     const activeUserId = getActiveUserId()
+    const adoptUnowned = canAdoptUnowned(activeUserId)
     const isMine = (row: { user_id: string | null }): boolean =>
-      row.user_id === null || row.user_id === activeUserId
+      row.user_id === activeUserId || (row.user_id === null && adoptUnowned)
 
-    for (const end of (await this.db.pendingTripEnds.toArray()).filter(isMine)) {
+    const ends = (await this.db.pendingTripEnds.toArray()).filter(isMine)
+    for (const [i, end] of ends.entries()) {
       try {
-        await apiClient.endTrip(end.trip_id, end.ended_at, end.water_temp_c)
+        await apiClient.endTrip(end.trip_id, end.ended_at, end.water_temp_c, end.user_id ?? activeUserId)
         await this.db.pendingTripEnds.delete(end.trip_id)
         pushed += 1
-      } catch {
+      } catch (error) {
+        if (error instanceof SessionMismatchError) {
+          // The account changed under us. Stop here: the handler has re-resolved the session,
+          // and everything still queued stays queued for whoever actually owns it.
+          return { pushed, failed: failed + (ends.length - i) }
+        }
         failed += 1
       }
     }
@@ -117,6 +130,10 @@ export class WebSyncEngine implements SyncEngine {
     const localIdToClientId = new Map(pendingTrips.map((t) => [t.local_id, t.client_id as string]))
     const resolveTripId = (tripId: string | null): string | undefined =>
       tripId === null ? undefined : (localIdToClientId.get(tripId) ?? tripId)
+
+    // Every row in this batch is either stamped for the active user or an unstamped legacy row
+    // adopting them, so one header covers the batch.
+    const batchUserId = pendingTrips[0]?.user_id ?? pendingCatches[0]?.user_id ?? activeUserId
 
     let response
     try {
@@ -146,9 +163,11 @@ export class WebSyncEngine implements SyncEngine {
           released: c.released,
           notes: c.notes,
         })),
-      })
+      }, batchUserId)
     } catch {
-      // Offline or the API is down: leave everything queued for the next flush().
+      // Offline, the API is down, or the server rejected the batch as belonging to another
+      // account (SessionMismatchError — the handler has already re-resolved who is signed in):
+      // either way nothing was written, so leave everything queued for the next flush().
       return { pushed, failed: failed + pendingTrips.length + pendingCatches.length }
     }
 

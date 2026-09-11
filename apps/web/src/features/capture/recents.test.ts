@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setActiveUserId } from '../../lib/auth/active-user'
 import type { LocalCatch } from '../../lib/db'
 import { WaterlogDb } from '../../lib/db'
 import { recentLureIds, recentSpecies } from './recents'
+
+const ANGLER = 'usr_a'
 
 let dbCounter = 0
 function freshDb(): WaterlogDb {
@@ -12,7 +15,7 @@ function freshDb(): WaterlogDb {
 function catchRow(overrides: Partial<LocalCatch> = {}): LocalCatch {
   return {
     local_id: crypto.randomUUID(),
-    user_id: null,
+    user_id: ANGLER,
     client_id: crypto.randomUUID(),
     id: null,
     trip_id: null,
@@ -31,6 +34,9 @@ function catchRow(overrides: Partial<LocalCatch> = {}): LocalCatch {
     ...overrides,
   }
 }
+
+beforeEach(() => setActiveUserId(ANGLER))
+afterEach(() => setActiveUserId(null))
 
 describe('recentSpecies', () => {
   it('returns distinct species, newest catch first', async () => {
@@ -63,5 +69,35 @@ describe('recentLureIds', () => {
     ])
 
     expect(await recentLureIds(db)).toEqual(['lure_b', 'lure_a'])
+  })
+})
+
+describe('recents ownership', () => {
+  it("shows an angler only their own catches, not the last person's to use this phone", async () => {
+    const db = freshDb()
+    await db.catches.bulkPut([
+      catchRow({ species: 'walleye', lure_id: 'lure_theirs', caught_at: 3000, user_id: 'usr_b' }),
+      catchRow({ species: 'bluegill', lure_id: 'lure_mine', caught_at: 1000 }),
+    ])
+
+    expect(await recentSpecies(db)).toEqual(['bluegill'])
+    expect(await recentLureIds(db)).toEqual(['lure_mine'])
+  })
+
+  it('never counts a catch whose owner was never recorded (pre-v3 row)', async () => {
+    const db = freshDb()
+    await db.catches.put(catchRow({ species: 'walleye', lure_id: 'lure_x', user_id: null }))
+
+    expect(await recentSpecies(db)).toEqual([])
+    expect(await recentLureIds(db)).toEqual([])
+  })
+
+  it('has nothing to show when nobody is signed in', async () => {
+    const db = freshDb()
+    await db.catches.put(catchRow({ species: 'walleye', lure_id: 'lure_x' }))
+    setActiveUserId(null)
+
+    expect(await recentSpecies(db)).toEqual([])
+    expect(await recentLureIds(db)).toEqual([])
   })
 })

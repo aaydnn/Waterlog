@@ -1,8 +1,75 @@
 import type { Trip } from '@waterlog/schema'
 import { tripSchema } from '@waterlog/schema'
 import { z } from 'zod'
+import { MAX_TRIP_HOUR_BUCKETS } from './hour-buckets'
 import { newId } from './ids'
 import type { UpsertResult } from './upsert-result'
+
+const HOUR_MS = 60 * 60 * 1000
+
+/** Epoch-ms floor for any angler-supplied timestamp: before this it is a bug, not a memory. */
+export const TIMESTAMP_FLOOR_MS = Date.UTC(2000, 0, 1)
+/** Clock skew we tolerate ahead of server time — a device with a wrong date still syncs. */
+export const FUTURE_SKEW_MS = 24 * HOUR_MS
+/**
+ * Longest single trip we record. The packet has no stated maximum (§04 F2 only auto-closes a
+ * trip after 6h idle), so this is a deliberate ceiling: see docs/adr/0012. It is what bounds
+ * enrichment work per trip — every hour of every trip gets a `conditions` row, so an
+ * unvalidated `started_at` a year back once produced 8,760 of them from one PATCH.
+ */
+export const MAX_TRIP_DURATION_MS = MAX_TRIP_HOUR_BUCKETS * HOUR_MS
+
+/** Null when the timestamp is plausible, otherwise the reason it isn't (shown to the client). */
+export function validateTimestamp(field: string, value: number, now: number = Date.now()): string | null {
+  if (!Number.isFinite(value)) return `${field} is not a valid timestamp`
+  if (value < TIMESTAMP_FLOOR_MS) return `${field} is before 2000-01-01`
+  if (value > now + FUTURE_SKEW_MS) return `${field} is more than 24h in the future`
+  return null
+}
+
+/**
+ * Shared by the sync batch and the end-trip route so a trip can't enter the system through
+ * whichever door is less guarded. Returns null when the times are usable, otherwise the message
+ * to report.
+ *
+ * These are the genuine-bug cases only — a timestamp that is not a timestamp, one from before
+ * the product existed, one from the future, an end before its own start. Length is *not* one of
+ * them: see `clampTripEnd`.
+ */
+export function validateTripTimes(
+  startedAt: number,
+  endedAt: number | null | undefined,
+  now: number = Date.now(),
+): string | null {
+  const startProblem = validateTimestamp('started_at', startedAt, now)
+  if (startProblem) return startProblem
+  if (endedAt === null || endedAt === undefined) return null
+
+  const endProblem = validateTimestamp('ended_at', endedAt, now)
+  if (endProblem) return endProblem
+  if (endedAt < startedAt) return 'ended_at is before started_at'
+  return null
+}
+
+/**
+ * Bounds a trip's length instead of refusing it: an over-long trip is clamped to
+ * `started_at + MAX_TRIP_DURATION_MS` and the clamped value is what gets persisted and returned,
+ * so the client mirrors it.
+ *
+ * Rejecting would strand data with no client recovery path. An angler who forgot to close
+ * Tuesday's trip taps "End trip" on Thursday and the client sends `Date.now()`; a 400 there
+ * leaves the trip open forever while the queued end retries. Worse in a batch: a rejected trip
+ * takes every catch that references it by client_id down with it ("trip_id not found"), and the
+ * client has nothing to correct. A trip nobody closed was never 48 hours of fishing, so cutting
+ * it at the ceiling is both the honest record and the bounded one — `computeHourBuckets` keeps
+ * its own clamp as a backstop for rows written before this existed.
+ *
+ * Call only after `validateTripTimes` has passed; it assumes `endedAt >= startedAt`.
+ */
+export function clampTripEnd(startedAt: number, endedAt: number | null | undefined): number | null {
+  if (endedAt === null || endedAt === undefined) return null
+  return Math.min(endedAt, startedAt + MAX_TRIP_DURATION_MS)
+}
 
 export const tripCreateInput = tripSchema
   .omit({ id: true, user_id: true, created_at: true, updated_at: true, deleted_at: true, client_id: true })

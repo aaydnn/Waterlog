@@ -1,3 +1,5 @@
+import { rememberAccount } from './device-accounts'
+
 /** Who the offline queue is writing for.
  *
  * The app is gated on sign-in, so every capture happens under a known user — but the queue
@@ -11,6 +13,9 @@ let activeUserId: string | null = null
 
 export function setActiveUserId(userId: string | null): void {
   activeUserId = userId
+  // The *set* of accounts that have used this device does persist — not as a session, but as
+  // the one thing that says whether an unowned local row can only belong to one person.
+  if (userId !== null) rememberAccount(userId)
 }
 
 export function getActiveUserId(): string | null {

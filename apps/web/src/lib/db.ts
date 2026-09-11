@@ -75,6 +75,20 @@ export class WaterlogDb extends Dexie {
       trips: 'local_id, client_id, id, synced_at, user_id',
       catches: 'local_id, client_id, id, trip_id, synced_at, caught_at, user_id',
     })
+    // v4: the cached server mirrors are owned too. Without this, whoever signed in next read
+    // the previous angler's lures and — worse — their waters, coordinates and all.
+    this.version(4)
+      .stores({
+        lures: 'id, name, user_id',
+        waterBodies: 'id, name, user_id',
+      })
+      .upgrade(async (tx) => {
+        // Rows cached before v4 have no recorded owner and no way to recover one, so they can
+        // never be shown to anybody. Deleted rather than merely hidden: these two tables are a
+        // pure mirror of the server, so the next refresh re-fetches whatever is really theirs.
+        await tx.table<Lure, string>('lures').filter((l) => !l.user_id).delete()
+        await tx.table<WaterBody, string>('waterBodies').filter((w) => !w.user_id).delete()
+      })
   }
 }
 

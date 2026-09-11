@@ -2,7 +2,8 @@
 import type { WaterBody } from '@waterlog/schema'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setActiveUserId } from '../../lib/auth/active-user'
 import { WaterlogDb } from '../../lib/db'
 import type { CatchDraft, SyncEngine, SyncResult, TripDraft } from '../../lib/sync/sync-engine'
 import { WebSyncEngine } from '../../lib/sync/sync-engine'
@@ -50,7 +51,12 @@ function mockOffline() {
   )
 }
 
-afterEach(() => vi.unstubAllGlobals())
+// The cached waters are per-account now, so the banner needs to know whose device this is.
+beforeEach(() => setActiveUserId('u1'))
+afterEach(() => {
+  setActiveUserId(null)
+  vi.unstubAllGlobals()
+})
 
 describe('TripBanner', () => {
   it('shows Start trip when nothing is active, and starts one on tap', async () => {

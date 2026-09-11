@@ -16,6 +16,12 @@ export interface AutoFlushOptions {
  * back online, and when the tab becomes visible again — the moment a backgrounded PWA gets to
  * run code after the truck reaches pavement.
  *
+ * No session re-check runs before these flushes on purpose. The tab's idea of who is signed in
+ * can be stale, but every write names its account (X-Waterlog-User) and the server refuses the
+ * batch if that isn't the cookie's user, so a stale tab can't misfile anything — and an
+ * /api/me on every foreground would be one more request to fail out of range for no safety we
+ * don't already have.
+ *
  * Returns the unsubscribe function.
  */
 export function startAutoFlush(engine: SyncEngine, options: AutoFlushOptions = {}): () => void {

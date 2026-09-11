@@ -65,12 +65,16 @@ Vite proxies `/api/*` to `127.0.0.1:8787`, so run both. Everything but `/api/hea
 session — without one the app shows the sign-in screen and every request 401s.
 
 **Signing in locally.** Google OAuth won't work against localhost (placeholder client secret,
-unregistered redirect), so use the magic link: `RESEND_API_KEY` is unset in dev, so the
-`ConsoleMailer` prints the link in the `wrangler dev` console. The link is built from `APP_URL`,
-which in `wrangler.toml` is the production Pages site — create `workers/api/.dev.vars` (gitignored)
-with `APP_URL = "http://localhost:5173"` and restart `wrangler dev`, or hand-edit the host when
-you paste it. Sign in as **`demo@waterlog.app`** to see the seeded trips and catches; any other
-address creates a fresh, empty user.
+unregistered redirect), so use the magic link, which the `ConsoleMailer` prints in the
+`wrangler dev` console. That mailer is **opt-in**: it logs a working sign-in credential, so an
+absent `RESEND_API_KEY` no longer falls back to it — without the flag the route answers 503 and
+mints no token (ADR-0011). Create `workers/api/.dev.vars` (gitignored, see `.dev.vars.example`)
+with `ALLOW_CONSOLE_MAIL = "true"` and `APP_URL = "http://localhost:5173"`, then restart
+`wrangler dev`. `APP_URL` matters because `wrangler.toml` points it at the production Pages site;
+without the override you must hand-edit the host when you paste the link. Never set
+`ALLOW_CONSOLE_MAIL` in `wrangler.toml`. Sign in as **`demo@waterlog.app`** to see the seeded
+trips and catches; any other address creates a fresh, empty user. The endpoint is rate-limited
+(5 per address / 20 per IP per 15 min), so a scripted loop will start getting 429s.
 
 ## Deploy
 

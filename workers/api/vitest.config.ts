@@ -12,7 +12,14 @@ export default defineWorkersConfig(async () => {
         workers: {
           wrangler: { configPath: './wrangler.toml' },
           miniflare: {
-            bindings: { TEST_MIGRATIONS: migrations },
+            bindings: {
+              TEST_MIGRATIONS: migrations,
+              // getMailer fails closed without this (a missing RESEND_API_KEY must not silently
+              // print sign-in links). Tests read the link off the console the same way local dev
+              // does, so they opt in explicitly here rather than in wrangler.toml's [vars],
+              // which is production configuration.
+              ALLOW_CONSOLE_MAIL: 'true',
+            },
           },
         },
       },

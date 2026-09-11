@@ -83,3 +83,14 @@ npx wrangler pages dev dist
 
 See the comment header in `functions/api/waitlist.js` for the matching
 `wrangler.toml` snippet.
+
+### Keys in the namespace
+
+Two prefixes share the namespace, so an export has to filter:
+
+- `email:<address>` — a signup record, `{ email, phone, created_at }`. This is the list.
+- `ip:<address>` — the per-IP submission counter, 10 per rolling hour, self-expiring via
+  `expirationTtl`. Not data; ignore it when exporting.
+
+The endpoint answers `200 {"ok":true}` whether the address is new or already stored, so it
+cannot be used to test who has signed up. A duplicate keeps the original record's timestamp.
