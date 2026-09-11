@@ -1,0 +1,96 @@
+.dive-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.dive-transition__sheet {
+  position: absolute;
+  inset: 0;
+  filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.45));
+  transform: translateY(-100%);
+  will-change: transform;
+  animation: dive-transition-wave-down 1.6s linear both;
+}
+
+.dive-transition__water {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--navy-1) 0%, var(--navy) 45%, var(--navy-2) 100%);
+}
+
+.dive-transition__edge {
+  position: absolute;
+  left: -4%;
+  width: 108%;
+  animation: dive-transition-sway 2.4s ease-in-out infinite;
+}
+
+.dive-transition__edge svg { display: block; width: 100%; height: 100%; }
+.dive-transition__edge--top { bottom: 100%; height: 52px; }
+.dive-transition__edge--top path { fill: var(--navy-1); opacity: 0.9; }
+.dive-transition__edge--bottom { top: 100%; height: 74px; animation-direction: reverse; animation-duration: 3.1s; }
+.dive-transition__edge--bottom > svg > path:first-child { fill: var(--navy-2); }
+.dive-transition__chartreuse-line { fill: none; stroke: var(--chartreuse); stroke-width: 2; opacity: 0.55; }
+.dive-transition__bone-line { fill: none; stroke: var(--bone); stroke-width: 5; opacity: 0.16; }
+
+.dive-transition__bubble,
+.dive-transition__fish,
+.dive-transition__drip { position: absolute; display: block; }
+
+.dive-transition__bubble {
+  left: var(--left);
+  bottom: var(--bottom);
+  width: var(--size);
+  height: var(--size);
+  border: 1px solid rgba(242, 239, 230, 0.34);
+  border-radius: 50%;
+  background: rgba(242, 239, 230, 0.08);
+  box-shadow: inset -2px -2px 3px rgba(242, 239, 230, 0.16);
+  animation: dive-transition-bubble var(--speed) var(--delay) ease-in infinite;
+}
+
+.dive-transition__fish {
+  top: var(--top);
+  left: 0;
+  width: var(--width);
+  height: calc(var(--width) / 2);
+  color: var(--fish-color);
+  animation: dive-transition-fish-left var(--speed) var(--delay) linear infinite;
+}
+
+.dive-transition__fish--right { animation-name: dive-transition-fish-right; }
+.dive-transition__fish svg { width: 100%; height: 100%; overflow: visible; fill: currentColor; animation: dive-transition-bob var(--bob) ease-in-out infinite; }
+.dive-transition__fish:not(.dive-transition__fish--right) svg { transform: scaleX(-1); }
+.dive-transition__fish circle { fill: var(--navy); }
+
+.dive-transition__drip {
+  top: var(--top);
+  left: var(--left);
+  width: 3px;
+  height: var(--height);
+  border-radius: 999px;
+  background: rgba(242, 239, 230, 0.5);
+  animation: dive-transition-drip var(--speed) var(--delay) ease-in both;
+}
+
+@keyframes dive-transition-wave-down { from { transform: translateY(-100%); } to { transform: translateY(100%); } }
+@keyframes dive-transition-sway { 0%, 100% { transform: translateX(-2.5%); } 50% { transform: translateX(2.5%); } }
+@keyframes dive-transition-bubble { 0% { transform: translateY(0) scale(0.5); opacity: 0; } 12% { opacity: 0.85; } 100% { transform: translateY(-62vh) scale(1); opacity: 0; } }
+@keyframes dive-transition-fish-right { from { transform: translateX(-30vw); } to { transform: translateX(130vw); } }
+@keyframes dive-transition-fish-left { from { transform: translateX(130vw); } to { transform: translateX(-30vw); } }
+@keyframes dive-transition-bob { 0%, 100% { translate: 0 0; rotate: -3deg; } 50% { translate: 0 -9px; rotate: 3deg; } }
+@keyframes dive-transition-drip { 0% { transform: translateY(-8px); opacity: 0; } 25% { opacity: 0.75; } 100% { transform: translateY(70px); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep a brief entrance instead of letting the global 0.001ms rule make it invisible. */
+  .dive-transition__sheet { animation-duration: 0.12s !important; }
+  .dive-transition__bubble,
+  .dive-transition__fish,
+  .dive-transition__drip,
+  .dive-transition__edge { animation: none; }
+}
