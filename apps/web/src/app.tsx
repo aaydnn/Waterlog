@@ -16,6 +16,7 @@ import { startAutoFlush } from './lib/sync/auto-flush'
 import type { SyncEngine } from './lib/sync/sync-engine'
 import { WebSyncEngine } from './lib/sync/sync-engine'
 import { BottomNav, type AppView } from './ui/bottom-nav'
+import { DiveTransition } from './ui/dive-transition'
 import { Wordmark } from './ui/wordmark'
 
 export interface AppProps {
@@ -38,9 +39,12 @@ export function App({ engine, auth = webAuth }: AppProps = {}) {
   const [view, setView] = useState<AppView>('journal')
   const [session, setSession] = useState<SessionState>('unknown')
   const [signOutPending, setSignOutPending] = useState(isLogoutPending)
+  const [showDiveTransition, setShowDiveTransition] = useState(false)
   /** What the other tabs were last told. Announcing only real changes is what stops two tabs
    * from bouncing the same user id off each other forever. */
   const announcedUserId = useRef<string | null>(null)
+  /** The entrance runs once per signed-in visit, not every time an API response refreshes it. */
+  const enteredUserId = useRef<string | null>(null)
 
   const applySession = useCallback((user: User | null) => {
     const userId = user?.id ?? null
@@ -48,6 +52,13 @@ export function App({ engine, auth = webAuth }: AppProps = {}) {
     // sends rows already stamped for them.
     setActiveUserId(userId)
     setSession(user ? { user } : 'signed-out')
+    if (user && enteredUserId.current !== user.id) {
+      enteredUserId.current = user.id
+      setShowDiveTransition(true)
+    } else if (!user) {
+      enteredUserId.current = null
+      setShowDiveTransition(false)
+    }
     const changed = announcedUserId.current !== userId
     announcedUserId.current = userId
     if (changed) publishSessionChange(userId)
@@ -199,6 +210,7 @@ export function App({ engine, auth = webAuth }: AppProps = {}) {
       {view === 'journal' ? <Journal /> : <StatsView />}
       <CaptureFlow />
       <BottomNav view={view} onChange={setView} />
+      {showDiveTransition && <DiveTransition key={session.user.id} />}
     </main>
   )
 }
