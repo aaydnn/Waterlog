@@ -10,87 +10,292 @@
 .dive-transition__sheet {
   position: absolute;
   inset: 0;
-  filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.45));
-  transform: translateY(-100%);
+  transform: translateY(0);
   will-change: transform;
-  animation: dive-transition-wave-down 1.6s linear both;
+  animation: dive-transition-drain 2.15s cubic-bezier(0.42, 0, 0.2, 1) both;
 }
 
 .dive-transition__water {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: linear-gradient(180deg, var(--navy-1) 0%, var(--navy) 45%, var(--navy-2) 100%);
+  background:
+    radial-gradient(ellipse at 18% 18%, rgba(242, 239, 230, 0.1), transparent 27%),
+    radial-gradient(ellipse at 82% 42%, rgba(27, 92, 126, 0.34), transparent 34%),
+    linear-gradient(180deg, #16374c 0%, var(--navy-1) 24%, var(--navy) 68%, #07141e 100%);
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.34);
 }
 
-.dive-transition__edge {
+.dive-transition__water::after {
   position: absolute;
-  left: -4%;
-  width: 108%;
-  animation: dive-transition-sway 2.4s ease-in-out infinite;
+  inset: 0;
+  content: '';
+  background: linear-gradient(
+    105deg,
+    transparent 8%,
+    rgba(242, 239, 230, 0.035) 24%,
+    transparent 39%,
+    rgba(223, 255, 0, 0.025) 63%,
+    transparent 78%
+  );
+  animation: dive-transition-light-sweep 3.4s ease-in-out infinite alternate;
 }
 
-.dive-transition__edge svg { display: block; width: 100%; height: 100%; }
-.dive-transition__edge--top { bottom: 100%; height: 52px; }
-.dive-transition__edge--top path { fill: var(--navy-1); opacity: 0.9; }
-.dive-transition__edge--bottom { top: 100%; height: 74px; animation-direction: reverse; animation-duration: 3.1s; }
-.dive-transition__edge--bottom > svg > path:first-child { fill: var(--navy-2); }
-.dive-transition__chartreuse-line { fill: none; stroke: var(--chartreuse); stroke-width: 2; opacity: 0.55; }
-.dive-transition__bone-line { fill: none; stroke: var(--bone); stroke-width: 5; opacity: 0.16; }
+.dive-transition__caustics {
+  position: absolute;
+  inset: -18%;
+  opacity: 0.3;
+  background:
+    repeating-radial-gradient(
+      ellipse at 22% 15%,
+      transparent 0 27px,
+      rgba(242, 239, 230, 0.06) 29px 31px,
+      transparent 34px 63px
+    ),
+    repeating-radial-gradient(
+      ellipse at 77% 38%,
+      transparent 0 39px,
+      rgba(78, 142, 169, 0.08) 42px 44px,
+      transparent 47px 78px
+    );
+  transform: rotate(-7deg) scale(1.1);
+  animation: dive-transition-caustics 5s ease-in-out infinite alternate;
+}
 
-.dive-transition__bubble,
-.dive-transition__fish,
-.dive-transition__drip { position: absolute; display: block; }
+.dive-transition__surface {
+  position: absolute;
+  z-index: 4;
+  top: -54px;
+  left: -5%;
+  width: 110%;
+  height: 96px;
+  filter: drop-shadow(0 -5px 11px rgba(242, 239, 230, 0.08));
+  animation: dive-transition-surface-sway 2.8s ease-in-out infinite alternate;
+}
+
+.dive-transition__surface > svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.dive-transition__surface-fill {
+  fill: #16374c;
+}
+
+.dive-transition__surface-glow,
+.dive-transition__surface-highlight,
+.dive-transition__surface-foam-line {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.dive-transition__surface-glow {
+  stroke: rgba(242, 239, 230, 0.4);
+  stroke-width: 5;
+}
+
+.dive-transition__surface-highlight {
+  stroke: rgba(223, 255, 0, 0.5);
+  stroke-width: 2;
+}
+
+.dive-transition__surface-foam-line {
+  stroke: rgba(242, 239, 230, 0.25);
+  stroke-width: 2;
+  stroke-dasharray: 5 13 18 9;
+  animation: dive-transition-foam-drift 2.8s linear infinite;
+}
+
+.dive-transition__foam {
+  position: absolute;
+  top: var(--top);
+  left: var(--left);
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: rgba(242, 239, 230, 0.66);
+  box-shadow: 0 0 5px rgba(242, 239, 230, 0.24);
+  animation: dive-transition-foam-pulse 1.5s var(--delay) ease-in-out infinite alternate;
+}
 
 .dive-transition__bubble {
+  position: absolute;
   left: var(--left);
   bottom: var(--bottom);
   width: var(--size);
   height: var(--size);
-  border: 1px solid rgba(242, 239, 230, 0.34);
+  border: 1px solid rgba(242, 239, 230, 0.4);
   border-radius: 50%;
-  background: rgba(242, 239, 230, 0.08);
-  box-shadow: inset -2px -2px 3px rgba(242, 239, 230, 0.16);
-  animation: dive-transition-bubble var(--speed) var(--delay) ease-in infinite;
+  background: rgba(242, 239, 230, 0.055);
+  box-shadow:
+    inset -2px -3px 4px rgba(7, 20, 30, 0.28),
+    inset 2px 2px 3px rgba(242, 239, 230, 0.16),
+    0 0 5px rgba(242, 239, 230, 0.08);
+  animation: dive-transition-bubble var(--speed) var(--delay) ease-in both;
 }
 
-.dive-transition__fish {
+.dive-transition__bubble::after {
+  position: absolute;
+  top: 18%;
+  left: 20%;
+  width: 25%;
+  height: 19%;
+  border-radius: 50%;
+  background: rgba(242, 239, 230, 0.42);
+  content: '';
+}
+
+.dive-transition__current {
+  position: absolute;
   top: var(--top);
-  left: 0;
-  width: var(--width);
-  height: calc(var(--width) / 2);
-  color: var(--fish-color);
-  animation: dive-transition-fish-left var(--speed) var(--delay) linear infinite;
+  left: -5%;
+  width: 110%;
+  height: 70px;
+  opacity: 0.12;
+  color: var(--bone);
+  animation: dive-transition-current var(--duration) var(--delay) ease-in-out infinite alternate;
 }
 
-.dive-transition__fish--right { animation-name: dive-transition-fish-right; }
-.dive-transition__fish svg { width: 100%; height: 100%; overflow: visible; fill: currentColor; animation: dive-transition-bob var(--bob) ease-in-out infinite; }
-.dive-transition__fish:not(.dive-transition__fish--right) svg { transform: scaleX(-1); }
-.dive-transition__fish circle { fill: var(--navy); }
+.dive-transition__current--accent {
+  opacity: 0.09;
+  color: var(--chartreuse);
+}
 
-.dive-transition__drip {
+.dive-transition__current svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.dive-transition__current path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.dive-transition__ripple {
+  position: absolute;
   top: var(--top);
   left: var(--left);
-  width: 3px;
-  height: var(--height);
-  border-radius: 999px;
-  background: rgba(242, 239, 230, 0.5);
-  animation: dive-transition-drip var(--speed) var(--delay) ease-in both;
+  width: var(--width);
+  height: calc(var(--width) * 0.24);
+  border: 1px solid rgba(242, 239, 230, 0.2);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.4);
+  animation: dive-transition-ripple var(--speed) var(--delay) ease-out infinite;
 }
 
-@keyframes dive-transition-wave-down { from { transform: translateY(-100%); } to { transform: translateY(100%); } }
-@keyframes dive-transition-sway { 0%, 100% { transform: translateX(-2.5%); } 50% { transform: translateX(2.5%); } }
-@keyframes dive-transition-bubble { 0% { transform: translateY(0) scale(0.5); opacity: 0; } 12% { opacity: 0.85; } 100% { transform: translateY(-62vh) scale(1); opacity: 0; } }
-@keyframes dive-transition-fish-right { from { transform: translateX(-30vw); } to { transform: translateX(130vw); } }
-@keyframes dive-transition-fish-left { from { transform: translateX(130vw); } to { transform: translateX(-30vw); } }
-@keyframes dive-transition-bob { 0%, 100% { translate: 0 0; rotate: -3deg; } 50% { translate: 0 -9px; rotate: 3deg; } }
-@keyframes dive-transition-drip { 0% { transform: translateY(-8px); opacity: 0; } 25% { opacity: 0.75; } 100% { transform: translateY(70px); opacity: 0; } }
+@keyframes dive-transition-drain {
+  0%,
+  12% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(calc(100% + 96px));
+  }
+}
+
+@keyframes dive-transition-surface-sway {
+  from {
+    transform: translateX(-2.2%) scaleY(0.96);
+  }
+  to {
+    transform: translateX(2.2%) scaleY(1.04);
+  }
+}
+
+@keyframes dive-transition-light-sweep {
+  from {
+    transform: translateX(-12%);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(12%);
+    opacity: 1;
+  }
+}
+
+@keyframes dive-transition-caustics {
+  from {
+    transform: translate(-2%, -1%) rotate(-7deg) scale(1.1);
+  }
+  to {
+    transform: translate(3%, 2%) rotate(-4deg) scale(1.16);
+  }
+}
+
+@keyframes dive-transition-foam-drift {
+  to {
+    stroke-dashoffset: -90;
+  }
+}
+
+@keyframes dive-transition-foam-pulse {
+  from {
+    opacity: 0.28;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 0.8;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes dive-transition-bubble {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.35);
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.82;
+  }
+  100% {
+    transform: translate3d(var(--drift), -58vh, 0) scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes dive-transition-current {
+  from {
+    transform: translateX(-3%) scaleX(1.04);
+  }
+  to {
+    transform: translateX(3%) scaleX(0.98);
+  }
+}
+
+@keyframes dive-transition-ripple {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.35);
+  }
+  18% {
+    opacity: 0.28;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.35);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  /* Keep a brief entrance instead of letting the global 0.001ms rule make it invisible. */
-  .dive-transition__sheet { animation-duration: 0.12s !important; }
+  /* Keep the reveal legible without the long travel or secondary motion. */
+  .dive-transition__sheet {
+    animation-duration: 0.18s !important;
+  }
+  .dive-transition__water::after,
+  .dive-transition__caustics,
+  .dive-transition__surface,
+  .dive-transition__surface-foam-line,
+  .dive-transition__foam,
   .dive-transition__bubble,
-  .dive-transition__fish,
-  .dive-transition__drip,
-  .dive-transition__edge { animation: none; }
+  .dive-transition__current,
+  .dive-transition__ripple {
+    animation: none;
+  }
 }
