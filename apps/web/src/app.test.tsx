@@ -81,6 +81,7 @@ describe('App session gate', () => {
 
     expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('dive-transition')).toBeInTheDocument()
   })
 
   it('never flashes sign-in at an angler who turns out to be signed in', async () => {

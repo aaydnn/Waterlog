@@ -14,6 +14,7 @@ import { startAutoFlush } from './lib/sync/auto-flush'
 import type { SyncEngine } from './lib/sync/sync-engine'
 import { WebSyncEngine } from './lib/sync/sync-engine'
 import { BottomNav, type AppView } from './ui/bottom-nav'
+import { DiveTransition } from './ui/dive-transition'
 import { Wordmark } from './ui/wordmark'
 
 export interface AppProps {
@@ -99,6 +100,7 @@ export function App({ engine, auth = new WebAuthProvider() }: AppProps = {}) {
       {view === 'journal' ? <Journal /> : <StatsView />}
       <CaptureFlow />
       <BottomNav view={view} onChange={setView} />
+      <DiveTransition key={session.user.id} />
     </main>
   )
 }
