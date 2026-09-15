@@ -2,7 +2,8 @@
 import type { Lure } from '@waterlog/schema'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setActiveUserId } from '../../lib/auth/active-user'
 import { WaterlogDb } from '../../lib/db'
 import type { CatchDraft, SyncEngine, SyncResult, TripDraft } from '../../lib/sync/sync-engine'
 import { CaptureFlow } from './capture-flow'
@@ -42,13 +43,18 @@ function fakeEngine(db: WaterlogDb, { reachesServer = true } = {}): SyncEngine {
 
 const fakePhoto = new File(['fake-bytes'], 'catch.jpg', { type: 'image/jpeg' })
 
+/** Matches the user_id the fake engine stamps on the rows it queues. */
+const SIGNED_IN = 'u1'
+
 function mockFetch(lures: Partial<Lure>[] = [], uploadOk = true) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/api/lures')) {
-        return { ok: true, status: 200, json: async () => ({ lures }) }
+        // The cache is per-account now, so a served lure has to say whose it is.
+        const owned = lures.map((l) => ({ user_id: SIGNED_IN, ...l }))
+        return { ok: true, status: 200, json: async () => ({ lures: owned }) }
       }
       if (url.includes('/api/photos')) {
         return uploadOk
@@ -60,7 +66,11 @@ function mockFetch(lures: Partial<Lure>[] = [], uploadOk = true) {
   )
 }
 
-afterEach(() => vi.unstubAllGlobals())
+beforeEach(() => setActiveUserId(SIGNED_IN))
+afterEach(() => {
+  setActiveUserId(null)
+  vi.unstubAllGlobals()
+})
 
 describe('CaptureFlow (F1: ten-second capture)', () => {
   it('logs a catch in exactly 2 taps after the photo — species then a recent lure', async () => {

@@ -1,13 +1,16 @@
 import { getActiveUserId } from '../../lib/auth/active-user'
+import { canAdoptUnowned } from '../../lib/auth/device-accounts'
 import type { LocalTrip, WaterlogDb } from '../../lib/db'
 import type { SyncEngine, TripDraft } from '../../lib/sync/sync-engine'
 
 /** The most recently started trip that hasn't been ended yet, or null (F2: start/stop wrapper). */
 export async function getActiveTrip(db: WaterlogDb): Promise<LocalTrip | null> {
-  // Never resume a trip another angler left open on this device.
+  // Never resume a trip another angler left open on this device. An unowned trip (pre-v3) is
+  // only resumable on a device a single account has ever used — see canAdoptUnowned.
   const userId = getActiveUserId()
+  const adoptUnowned = canAdoptUnowned(userId)
   const open = await db.trips
-    .filter((t) => t.ended_at === null && (t.user_id === null || t.user_id === userId))
+    .filter((t) => t.ended_at === null && (t.user_id === userId || (t.user_id === null && adoptUnowned)))
     .toArray()
   if (open.length === 0) return null
   return open.reduce((latest, t) => (t.started_at > latest.started_at ? t : latest))

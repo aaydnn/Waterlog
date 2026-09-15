@@ -3,7 +3,9 @@ import { useCallback, useEffect, useState } from 'react'
 import type { JournalQuery } from '../../lib/api-client'
 import type { WaterlogDb } from '../../lib/db'
 import { getDb } from '../../lib/db'
+import { cachedLures } from '../../lib/lures'
 import { formatLength, formatWeight } from '../../lib/units'
+import { cachedWaterBodies } from '../../lib/water-bodies'
 import { SPECIES, speciesLabel } from '../capture/species'
 import { CatchDetail } from './catch-detail'
 import './journal.css'
@@ -44,7 +46,9 @@ export function Journal({ db = getDb() }: JournalProps) {
   const [lures, setLures] = useState<Lure[]>([])
 
   useEffect(() => {
-    void Promise.all([db.waterBodies.toArray(), db.lures.toArray()]).then(([w, l]) => {
+    // The filter menus name waters and lures, so they are scoped to the signed-in angler like
+    // every other read of these caches — a menu is a list of somebody's spots.
+    void Promise.all([cachedWaterBodies(db), cachedLures(db)]).then(([w, l]) => {
       setWaters(w)
       setLures(l)
     })

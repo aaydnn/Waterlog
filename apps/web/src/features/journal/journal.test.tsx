@@ -2,7 +2,8 @@
 import type { JournalEntry } from '@waterlog/schema'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setActiveUserId } from '../../lib/auth/active-user'
 import { WaterlogDb } from '../../lib/db'
 import { Journal } from './journal'
 
@@ -55,7 +56,13 @@ function mockJournal(pages: Array<{ entries: JournalEntry[]; next_cursor: string
   return urls
 }
 
-afterEach(() => vi.unstubAllGlobals())
+// The cached waters and lures the journal names are per-account, so these tests need to say
+// whose device this is.
+beforeEach(() => setActiveUserId('u1'))
+afterEach(() => {
+  setActiveUserId(null)
+  vi.unstubAllGlobals()
+})
 
 describe('Journal (F3)', () => {
   it('renders catches newest-first with the lure, water and measurements on the card', async () => {

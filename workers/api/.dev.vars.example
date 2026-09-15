@@ -1,0 +1,21 @@
+# Local dev overrides for `wrangler dev`. Copy to `.dev.vars` (gitignored) and edit.
+# `.dev.vars` beats wrangler.toml's [vars]; neither file should ever hold a real secret.
+
+# APP_URL must be the origin the *browser* uses, which in dev is the Vite server that proxies
+# /api/* to this worker. Without it, the magic link points at the production Pages site, where
+# the token minted locally does not exist.
+APP_URL = "http://localhost:5173"
+
+# Permits the ConsoleMailer, which prints the whole sign-in link to the `wrangler dev` console.
+# That link is a bearer credential, so this is local-only: without it (and without a
+# RESEND_API_KEY) POST /api/auth/magic-link answers 503 and mints no token, which is what
+# production must do if the mail secret ever goes missing. Never set this in wrangler.toml.
+ALLOW_CONSOLE_MAIL = "true"
+
+# Real mail. Leave unset locally; in deployed environments it is a secret:
+#   wrangler secret put RESEND_API_KEY
+# RESEND_API_KEY = ""
+
+# Google OAuth will not work against localhost (unregistered redirect); use the magic link.
+#   wrangler secret put GOOGLE_CLIENT_SECRET
+# GOOGLE_CLIENT_SECRET = ""

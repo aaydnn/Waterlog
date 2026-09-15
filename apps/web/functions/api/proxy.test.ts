@@ -61,4 +61,20 @@ describe('/api/* Pages Function proxy', () => {
     expect(new URL(sent.url).pathname).toBe('/api/health')
     expect(new URL(sent.url).origin).toMatch(/^https:\/\//)
   })
+
+  it('forwards the header naming the account a write is for', async () => {
+    // The server compares X-Waterlog-User to the session cookie and 409s on a mismatch; a
+    // proxy that dropped it would turn that check into a no-op.
+    const spy = stubFetch()
+    await onRequest({
+      request: new Request('https://app.example.test/api/sync', {
+        method: 'POST',
+        headers: { 'X-Waterlog-User': 'usr_a', 'content-type': 'application/json' },
+        body: '{}',
+      }),
+      env: { API_ORIGIN },
+    })
+
+    expect(spy.mock.calls[0]![0].headers.get('x-waterlog-user')).toBe('usr_a')
+  })
 })

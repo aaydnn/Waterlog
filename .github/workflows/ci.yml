@@ -28,40 +28,81 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: ci
     runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    # Named so the Cloudflare secrets can later be scoped to this environment
+    # (and gated on a reviewer) instead of living at the repo level.
+    environment: production
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Nothing here talks to git after checkout, so don't leave the
+          # GITHUB_TOKEN in .git/config where build code could read it.
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+      # No Cloudflare secrets on this step: install runs package postinstall
+      # scripts, which are PR-authored code.
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @waterlog/api exec wrangler d1 migrations apply DB --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: pnpm --filter @waterlog/api exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: pnpm --filter @waterlog/enrich exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: pnpm --filter @waterlog/cron exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: pnpm --filter waterlog-waitlist build
       - run: pnpm --filter waterlog-waitlist exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   # apps/web deploys via wrangler (Cloudflare Pages), not the Pages GitHub
   # integration. Runs on both PRs (preview URL, one per branch) and pushes
   # to main (production, since main is the project's production branch).
+  # Fork PRs are skipped so the Cloudflare token never reaches code we don't
+  # control.
   deploy-web:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: ci
     runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Nothing here talks to git after checkout, so don't leave the
+          # GITHUB_TOKEN in .git/config where build code could read it.
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+      # No Cloudflare secrets on install/build: both run PR-authored code
+      # (postinstall scripts, vite config, plugins).
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter web build
-      - run: pnpm --filter web exec wrangler pages deploy dist --project-name=waterlog-web --branch=${{ github.head_ref || github.ref_name }}
+      # The branch name is attacker-controlled, so it reaches the shell only as
+      # a quoted env var (never `${{ }}` inside run:), and only after it checks
+      # out as a plain branch name - it also becomes a preview hostname.
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          if [[ ! "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "::error::refusing to deploy: unexpected characters in branch name"
+            exit 1
+          fi
+          pnpm --filter web exec wrangler pages deploy dist \
+            --project-name=waterlog-web --branch="$BRANCH"
