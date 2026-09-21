@@ -10,7 +10,10 @@ dist/
 .DS_Store
 coverage/
 .claude/settings.local.json
-.wrangler-local/
+# Any shared local D1 passed to `wrangler --persist-to`, whatever it is called. A glob rather than
+# a list: `.wrangler-local/` was named here and `.wrangler-verify/` still reached a commit, because
+# the next one always has a different name.
+.wrangler-*/
 .pnpm-store/
 
 # VAPID keypair written by workers/cron/scripts/generate-vapid.mjs. Never commit a private key.
