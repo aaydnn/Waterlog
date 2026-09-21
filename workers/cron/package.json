@@ -19,6 +19,7 @@
     "@cloudflare/vitest-pool-workers": "^0.9.14"
   },
   "dependencies": {
+    "@waterlog/pattern-engine": "workspace:*",
     "@waterlog/patterns": "workspace:*",
     "@waterlog/schema": "workspace:*",
     "ulid": "^3.0.2",

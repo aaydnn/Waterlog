@@ -8,6 +8,7 @@ import {
   lureSchema,
   offeringSessionSchema,
   patternCacheRowSchema,
+  patternEngineJobSchema,
   patternFindingRowSchema,
   patternJobSchema,
   patternRunRowSchema,
@@ -360,5 +361,19 @@ describe('pattern engine v2 rows', () => {
       cursor: null,
       trip_id: null,
     })
+  })
+
+  it('a v2 engine job defaults its trip and carries no cursor', () => {
+    expect(patternEngineJobSchema.parse({ user_id: 'usr_demo01' })).toEqual({
+      user_id: 'usr_demo01',
+      trip_id: null,
+    })
+    // v2 runs to completion in one invocation, so a cursor is not part of the shape — a v1 job
+    // sent to the v2 queue by mistake parses as a plain nightly run rather than resuming nothing.
+    expect(patternEngineJobSchema.parse({ user_id: 'usr_demo01', cursor: 'all' })).toEqual({
+      user_id: 'usr_demo01',
+      trip_id: null,
+    })
+    expect(patternEngineJobSchema.safeParse({ trip_id: 'trp_1' }).success).toBe(false)
   })
 })

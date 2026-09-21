@@ -28,6 +28,28 @@ queue = "waterlog-patterns"
 max_batch_size = 1
 max_retries = 4
 
+# The v2 engine's own queue (ADR-0017), producer and consumer, in the same Worker and separate from
+# v1's. Sharing one queue would mean sharing a backlog and a retry budget, so a slow v2 run would
+# delay a v1 recompute — the same argument that made v1 one angler per message, one level up.
+#
+# `wrangler deploy` will not create it:
+#   wrangler queues create pattern-engine
+[[queues.producers]]
+binding = "ENGINE_QUEUE"
+queue = "pattern-engine"
+
+[[queues.consumers]]
+queue = "pattern-engine"
+max_batch_size = 1
+max_retries = 4
+
+[limits]
+# v2 runs to completion in one invocation instead of chunking against a budget: the brief measured
+# ~60ms at 40 trips and ~210ms at 300, so five seconds is more than an order of magnitude of
+# headroom. It is a backstop against a pathological history, not a working limit — if a real angler
+# ever approaches it, the run log's trip and hour counts say who and how much.
+cpu_ms = 5_000
+
 [vars]
 # Where a push notification's link lands — the Pages origin the browser knows, never this Worker's
 # own hostname.

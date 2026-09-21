@@ -42,10 +42,18 @@ describe('the nightly trigger', () => {
     // Stubbed rather than called through: this worker consumes the queue it produces onto, so a
     // real send would run the consumer outside the test's own storage frame.
     const send = vi.spyOn(env.PATTERN_QUEUE, 'send').mockResolvedValue(undefined as unknown as QueueSendResponse)
+    // Both queues are stubbed for the same reason: this worker consumes what it produces, so a
+    // real send would run a consumer outside the test's own storage frame.
+    const engineSend = vi
+      .spyOn(env.ENGINE_QUEUE, 'send')
+      .mockResolvedValue(undefined as unknown as QueueSendResponse)
     try {
       await worker.scheduled(scheduledEvent(), env)
       const jobs = send.mock.calls.map(([job]) => job as { user_id: string; cursor: string | null })
       expect(jobs.some((job) => job.user_id === userId && job.cursor === null)).toBe(true)
+      // The same angler goes to v2 as well, so both engines see the same night.
+      const engineJobs = engineSend.mock.calls.map(([job]) => job as { user_id: string })
+      expect(engineJobs.some((job) => job.user_id === userId)).toBe(true)
       // Nothing was computed by the trigger itself.
       const cached = await env.DB.prepare('SELECT COUNT(*) AS n FROM pattern_cache WHERE user_id = ?')
         .bind(userId)
@@ -53,6 +61,24 @@ describe('the nightly trigger', () => {
       expect(cached!.n).toBe(0)
     } finally {
       send.mockRestore()
+      engineSend.mockRestore()
+    }
+  })
+
+  it('still enqueues v1 when the v2 queue rejects the send', async () => {
+    const userId = await seedAngler({ email: 'sched-v2-down@example.com', trips: hotTrips() })
+    const send = vi.spyOn(env.PATTERN_QUEUE, 'send').mockResolvedValue(undefined as unknown as QueueSendResponse)
+    const engineSend = vi
+      .spyOn(env.ENGINE_QUEUE, 'send')
+      .mockRejectedValue(new Error('queue unavailable'))
+    try {
+      await worker.scheduled(scheduledEvent(), env)
+      // The shadow engine being unreachable must not cost the angler their real feed.
+      const jobs = send.mock.calls.map(([job]) => job as { user_id: string })
+      expect(jobs.some((job) => job.user_id === userId)).toBe(true)
+    } finally {
+      send.mockRestore()
+      engineSend.mockRestore()
     }
   })
 })

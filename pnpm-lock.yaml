@@ -189,6 +189,9 @@ importers:
 
   workers/cron:
     dependencies:
+      '@waterlog/pattern-engine':
+        specifier: workspace:*
+        version: link:../../packages/pattern-engine
       '@waterlog/patterns':
         specifier: workspace:*
         version: link:../../packages/patterns

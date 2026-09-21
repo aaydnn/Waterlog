@@ -47,8 +47,37 @@ export interface FamilyWork {
   allStats: Map<string, BucketStats>;
 }
 
+/** Separator in a finding key. Shared by both directions so the format has one definition. */
+const KEY_SEP = '::';
+
 export const findingKey = (scopeId: ScopeId, outcome: OutcomeKey, dimension: string, bucket: string) =>
-  `${scopeId}::${outcome}::${dimension}::${bucket}`;
+  [scopeId, outcome, dimension, bucket].join(KEY_SEP);
+
+/**
+ * The inverse of `findingKey`. A `FindingRecord` carries only its key, so a caller persisting one
+ * that is not surfaced this run has nothing else to locate it by — and the format belongs here,
+ * with the function that writes it, rather than being re-derived at every call site.
+ *
+ * The bucket takes the remainder rather than a fourth field: a scope, an outcome and a dimension
+ * cannot contain the separator, but joining the tail means a bucket that somehow does survives the
+ * round trip instead of being silently truncated.
+ */
+export function parseFindingKey(key: string): {
+  scopeId: ScopeId;
+  outcome: OutcomeKey;
+  dimension: string;
+  bucket: string;
+} {
+  const parts = key.split(KEY_SEP);
+  return {
+    // `split` always yields at least one element, even for the empty string, so there is no
+    // no-scope case to guard here.
+    scopeId: parts[0]!,
+    outcome: parts.length > 1 ? (parts[1]! as OutcomeKey) : 'all',
+    dimension: parts.length > 2 ? parts[2]! : '',
+    bucket: parts.slice(3).join(KEY_SEP),
+  };
+}
 
 const TIER_RANK: Record<Tier, number> = { early: 1, promising: 2, solid: 3 };
 
