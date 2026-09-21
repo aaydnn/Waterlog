@@ -209,7 +209,7 @@ describe('schema round-trips against seed-shaped rows', () => {
   })
 })
 
-// Pattern engine v2 (ADR-0017, migration 0009). Same round-trip contract as the tables above,
+// Pattern engine v2 (ADR-0017, migration 0010). Same round-trip contract as the tables above,
 // plus the two cases the new columns exist to express: an open tie-on interval, and a finding
 // that is computed but not surfaced.
 describe('pattern engine v2 rows', () => {

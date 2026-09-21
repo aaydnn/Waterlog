@@ -365,7 +365,7 @@ export const pushSubscriptionInputSchema = z.object({
 export type PushSubscriptionInput = z.infer<typeof pushSubscriptionInputSchema>
 
 // ─────────────────────────── Pattern engine v2 (ADR-0017) ───────────────────────────
-// Migration 0009. These are the rows the v2 engine reads and writes; the engine's own types
+// Migration 0010. These are the rows the v2 engine reads and writes; the engine's own types
 // (Finding, FindingRecord, HypothesisResult, EngineResult) live in @waterlog/pattern-engine and
 // reach D1 as JSON in the `*_json` columns below. The row schema mirrors the column, so those
 // stay `z.string()` here rather than being re-described — a shape defined twice is a shape that
