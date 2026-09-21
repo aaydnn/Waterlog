@@ -36,6 +36,14 @@ function messageBatch(bodies: unknown[]) {
   }
 }
 
+/**
+ * These describe the v1-primary sweep, so they pin the mode rather than inheriting whatever
+ * `wrangler.toml` currently deploys. Without this a cutover flip silently changes what they
+ * assert — which is exactly what happened the first time `PATTERN_ENGINE_VERSION` moved to "v2".
+ * The v2-primary side of the same behaviour lives in `cutover.test.ts`.
+ */
+const v1Env = () => ({ ...env, PATTERN_ENGINE_VERSION: 'v1' })
+
 describe('the nightly trigger', () => {
   it('enqueues one job per angler who is due and does no arithmetic itself', async () => {
     const userId = await seedAngler({ email: 'sched@example.com', trips: hotTrips() })
@@ -48,7 +56,7 @@ describe('the nightly trigger', () => {
       .spyOn(env.ENGINE_QUEUE, 'send')
       .mockResolvedValue(undefined as unknown as QueueSendResponse)
     try {
-      await worker.scheduled(scheduledEvent(), env)
+      await worker.scheduled(scheduledEvent(), v1Env())
       const jobs = send.mock.calls.map(([job]) => job as { user_id: string; cursor: string | null })
       expect(jobs.some((job) => job.user_id === userId && job.cursor === null)).toBe(true)
       // The same angler goes to v2 as well, so both engines see the same night.
@@ -72,7 +80,7 @@ describe('the nightly trigger', () => {
       .spyOn(env.ENGINE_QUEUE, 'send')
       .mockRejectedValue(new Error('queue unavailable'))
     try {
-      await worker.scheduled(scheduledEvent(), env)
+      await worker.scheduled(scheduledEvent(), v1Env())
       // The shadow engine being unreachable must not cost the angler their real feed.
       const jobs = send.mock.calls.map(([job]) => job as { user_id: string })
       expect(jobs.some((job) => job.user_id === userId)).toBe(true)

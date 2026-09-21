@@ -66,7 +66,7 @@ APP_URL = "https://waterlog-web.pages.dev"
 #
 # Flip this when the parity gate has been reviewed against real fishing:
 #   curl "http://127.0.0.1:8799/__parity?user=<id>"   (see CLAUDE.md)
-PATTERN_ENGINE_VERSION = "v1"
+PATTERN_ENGINE_VERSION = "v2"
 #
 # VAPID keys deliberately do NOT appear here. The private key signs push authentication tokens for
 # this origin; every environment that loads this file is a deployed one. Set them as secrets:
