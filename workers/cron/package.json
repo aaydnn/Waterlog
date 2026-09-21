@@ -8,12 +8,20 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "migrate": "wrangler d1 migrations apply DB --local"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260708.1",
     "typescript": "^5.8.0",
     "vitest": "^3.2.0",
-    "wrangler": "^4.20.0"
+    "wrangler": "^4.20.0",
+    "@cloudflare/vitest-pool-workers": "^0.9.14"
+  },
+  "dependencies": {
+    "@waterlog/patterns": "workspace:*",
+    "@waterlog/schema": "workspace:*",
+    "ulid": "^3.0.2",
+    "zod": "^3.25.76"
   }
 }

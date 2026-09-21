@@ -190,6 +190,9 @@ describe('Journal (F3)', () => {
       auto_created: 0,
       planned: 0,
       notes: null,
+      effort_source: 'manual',
+      target_species: null,
+      lesson_json: null,
       synced_at: null,
     })
     await db.waterBodies.put({

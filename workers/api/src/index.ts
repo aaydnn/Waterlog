@@ -4,6 +4,7 @@ import { requireAuth } from './middleware/require-auth'
 import { authRoutes } from './routes/auth'
 import { journalRoutes, statsRoutes } from './routes/journal'
 import { lureRoutes } from './routes/lures'
+import { patternRoutes, pushRoutes } from './routes/patterns'
 import { photoRoutes } from './routes/photos'
 import { syncRoutes } from './routes/sync'
 import { tripRoutes } from './routes/trips'
@@ -20,6 +21,8 @@ app.route('/api/photos', photoRoutes)
 app.route('/api/lures', lureRoutes)
 app.route('/api/trips', tripRoutes)
 app.route('/api/water-bodies', waterBodyRoutes)
+app.route('/api/patterns', patternRoutes)
+app.route('/api/push', pushRoutes)
 app.route('/api/journal', journalRoutes)
 app.route('/api/stats', statsRoutes)
 

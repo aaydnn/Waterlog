@@ -33,6 +33,10 @@ export async function startTrip(
     planned: 0,
     notes: null,
     water_temp_c: null,
+    // The timer is running for this one, so its clock is measured rather than remembered — the
+    // strongest exposure evidence the engine can get (ADR-0017).
+    effort_source: 'timer',
+    target_species: null,
   }
   const localId = await engine.enqueueTrip(draft)
   const trip = await db.trips.get(localId)

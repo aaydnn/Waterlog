@@ -10,7 +10,12 @@ import { getDb } from '../db'
 // later, a Capacitor-native implementation behind this same interface.
 // Feature code imports the interface, never a concrete implementation.
 
-export type TripDraft = Omit<Trip, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deleted_at' | 'client_id'>
+// `lesson_json` is omitted with the server-owned columns: the post-trip lesson is written by the
+// pattern queue consumer from engine output (ADR-0017), never drafted on the client.
+export type TripDraft = Omit<
+  Trip,
+  'id' | 'user_id' | 'created_at' | 'updated_at' | 'deleted_at' | 'client_id' | 'lesson_json'
+>
 export type CatchDraft = Omit<
   Catch,
   'id' | 'user_id' | 'created_at' | 'updated_at' | 'deleted_at' | 'client_id' | 'enrich_status' | 'trip_id'
@@ -47,6 +52,8 @@ export class WebSyncEngine implements SyncEngine {
       user_id: getActiveUserId(),
       client_id: ulid(),
       id: null,
+      // Server-owned, like `id`: the lesson arrives on a later sync, once the engine has run.
+      lesson_json: null,
       synced_at: null,
     }
     await this.db.trips.put(row)

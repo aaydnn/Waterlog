@@ -10,3 +10,5 @@ dist/
 .DS_Store
 coverage/
 .claude/settings.local.json
+.wrangler-local/
+.pnpm-store/

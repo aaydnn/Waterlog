@@ -39,6 +39,9 @@ describe('getActiveTrip', () => {
         planned: 0,
         notes: null,
         water_temp_c: null,
+        effort_source: 'manual',
+        target_species: null,
+        lesson_json: null,
         synced_at: null,
       },
       {
@@ -53,6 +56,9 @@ describe('getActiveTrip', () => {
         planned: 0,
         notes: null,
         water_temp_c: null,
+        effort_source: 'manual',
+        target_species: null,
+        lesson_json: null,
         synced_at: null,
       },
       {
@@ -67,6 +73,9 @@ describe('getActiveTrip', () => {
         planned: 0,
         notes: null,
         water_temp_c: null,
+        effort_source: 'manual',
+        target_species: null,
+        lesson_json: null,
         synced_at: null,
       },
     ])
@@ -100,6 +109,9 @@ describe('startTrip', () => {
       planned: 0,
       notes: null,
       water_temp_c: null,
+      effort_source: 'manual',
+      target_species: null,
+      lesson_json: null,
       synced_at: null,
     })
 
@@ -125,6 +137,9 @@ describe('endActiveTrip', () => {
       planned: 0,
       notes: null,
       water_temp_c: null,
+      effort_source: 'manual',
+      target_species: null,
+      lesson_json: null,
       synced_at: null,
     })
 
@@ -151,6 +166,9 @@ describe('tripReferenceFor', () => {
     planned: 0 as const,
     notes: null,
     water_temp_c: null,
+    effort_source: 'manual' as const,
+    target_species: null,
+    lesson_json: null,
     synced_at: null,
   }
 

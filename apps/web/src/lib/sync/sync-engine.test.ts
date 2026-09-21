@@ -21,6 +21,8 @@ function tripDraft(overrides: Partial<TripDraft> = {}): TripDraft {
     planned: 1,
     notes: null,
     water_temp_c: null,
+    effort_source: 'manual',
+    target_species: null,
     ...overrides,
   }
 }
@@ -55,6 +57,9 @@ function serverTrip(overrides: Partial<Trip> = {}): Trip {
     notes: null,
     water_temp_c: null,
     client_id: null,
+    effort_source: 'manual',
+    target_species: null,
+    lesson_json: null,
     created_at: 1_780_000_000_000,
     updated_at: 1_780_000_000_000,
     deleted_at: null,

@@ -1,0 +1,272 @@
+.patterns {
+  display: block;
+}
+
+.patterns__message {
+  color: var(--bone-48);
+  font-size: 14px;
+  padding: 24px 0;
+}
+
+.patterns__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.patterns__note {
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bone-48);
+}
+
+/* --- one card ---------------------------------------------------------- */
+
+.pattern-card {
+  background: var(--navy-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+
+.pattern-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pattern-card__chip {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  padding: 2px 10px;
+  border-radius: var(--radius-md);
+}
+
+.pattern-card__chip--lift {
+  color: var(--navy);
+  background: var(--chartreuse);
+}
+
+/* A collapse is a finding, not a failure: it reads as quiet rather than as an alarm. */
+.pattern-card__chip--drop {
+  color: var(--bone);
+  background: var(--navy-2);
+}
+
+.pattern-card__chip--locked {
+  color: var(--bone-32);
+  background: var(--navy-2);
+}
+
+.pattern-card__badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline);
+  color: var(--bone-48);
+}
+
+.pattern-card__badge--promising {
+  color: var(--bone-72);
+}
+
+.pattern-card__badge--solid {
+  color: var(--chartreuse);
+  border-color: rgba(223, 255, 0, 0.32);
+}
+
+.pattern-card__statement {
+  margin: 0 0 12px;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--bone);
+}
+
+.pattern-card__statement--locked {
+  color: var(--bone-72);
+}
+
+.pattern-card__bar {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--navy-2);
+  overflow: hidden;
+}
+
+.pattern-card__bar-baseline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--bone-32);
+}
+
+.pattern-card__bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+}
+
+.pattern-card__bar-fill--lift {
+  background: var(--chartreuse);
+}
+
+.pattern-card__bar-fill--drop {
+  background: var(--bone-32);
+}
+
+.pattern-card__footer {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--bone-48);
+}
+
+.pattern-card__scope {
+  color: var(--bone-32);
+}
+
+/* --- locked ------------------------------------------------------------ */
+
+.pattern-card--locked {
+  border-style: dashed;
+}
+
+.pattern-card__blur {
+  display: grid;
+  gap: 6px;
+}
+
+.pattern-card__blur-line {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--navy-2);
+  filter: blur(2px);
+}
+
+.pattern-card__blur-line--short {
+  width: 55%;
+}
+
+.patterns__paywall {
+  background: var(--navy-1);
+  border: 1px solid rgba(223, 255, 0, 0.24);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.patterns__paywall-count {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--bone);
+}
+
+.patterns__paywall-copy {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--bone-72);
+}
+
+.patterns__paywall-cta {
+  width: 100%;
+  font: inherit;
+  font-weight: 800;
+  font-size: 15px;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--chartreuse);
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.patterns__paywall-cta:focus-visible {
+  outline: 2px solid var(--bone);
+  outline-offset: 2px;
+}
+
+/* --- waiting ----------------------------------------------------------- */
+
+.patterns__waiting {
+  padding: 24px 0;
+}
+
+.patterns__waiting-headline {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--bone);
+}
+
+.patterns__waiting-copy {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--bone-72);
+}
+
+.patterns__meter {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--navy-2);
+  overflow: hidden;
+}
+
+.patterns__meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--chartreuse);
+  border-radius: 4px;
+}
+
+/* --- notification opt-in ------------------------------------------------ */
+
+.patterns__notify {
+  margin: 20px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--bone-48);
+}
+
+.patterns__notify--on {
+  color: var(--bone-72);
+}
+
+.patterns__notify-button {
+  font: inherit;
+  font-weight: 700;
+  color: var(--bone);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.patterns__notify-button:disabled {
+  color: var(--bone-32);
+  cursor: default;
+}
+
+.patterns__notify-button:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 2px;
+}
