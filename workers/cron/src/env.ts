@@ -19,6 +19,18 @@ export interface CronBindings {
   /** Where a push notification's link should land. */
   APP_URL?: string
   /**
+   * Which engine owns what the angler sees: `'v2'` hands the feed to the v2 engine, anything else
+   * (including absent) leaves it with v1 and runs v2 in shadow.
+   *
+   * This is the cutover, and it is one word in `wrangler.toml` so that turning v2 on and turning
+   * it back off are the same size of change — a one-line commit, reviewable and revertible, rather
+   * than a deploy of different code. ADR-0017's parity gate is what should decide when it flips.
+   *
+   * Under `'v2'` the nightly sweep stops enqueueing v1 entirely. `GET /__parity` still works,
+   * because it computes v1 from the angler's history rather than reading `pattern_cache`.
+   */
+  PATTERN_ENGINE_VERSION?: string
+  /**
    * Opt-in switch for the parity harness route (brief §7). Absent, `GET /__parity` 404s exactly
    * as an unknown path would, so a deployed worker exposes nothing.
    *

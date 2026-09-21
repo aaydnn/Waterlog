@@ -55,6 +55,19 @@ cpu_ms = 5_000
 # own hostname.
 APP_URL = "https://waterlog-web.pages.dev"
 #
+# The engine cutover (ADR-0017). "v1" keeps the shipped feed on the v1 engine and runs v2 in
+# shadow, writing only its own tables. "v2" hands the feed to the v2 engine: it projects onto
+# `pattern_cache` through the adapter, claims `pattern_runs.completed_at`, owns the first-pattern
+# push, and the nightly sweep stops enqueueing v1 altogether.
+#
+# It is one word here, rather than a code change, so that turning v2 on and taking it back off are
+# the same size of edit — a one-line commit that CI deploys. Anything but the exact string "v2"
+# leaves v1 in charge, so a typo fails safe.
+#
+# Flip this when the parity gate has been reviewed against real fishing:
+#   curl "http://127.0.0.1:8799/__parity?user=<id>"   (see CLAUDE.md)
+PATTERN_ENGINE_VERSION = "v1"
+#
 # VAPID keys deliberately do NOT appear here. The private key signs push authentication tokens for
 # this origin; every environment that loads this file is a deployed one. Set them as secrets:
 #   wrangler secret put VAPID_PUBLIC_KEY

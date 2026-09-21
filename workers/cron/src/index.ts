@@ -37,18 +37,34 @@ export default {
   async scheduled(event: ScheduledController, env: CronBindings): Promise<void> {
     const now = event.scheduledTime
     const due = await usersDueForRecompute(env.DB, now - RECOMPUTE_AFTER_MS, MAX_USERS_PER_RUN)
+    const v2Primary = isV2Primary(env)
+
     for (const userId of due) {
+      if (v2Primary) {
+        // v2 owns the feed. v1 is not enqueued at all — two engines writing `pattern_cache` would
+        // overwrite each other nightly, and whichever finished last would win by accident.
+        await env.ENGINE_QUEUE.send({ user_id: userId, trip_id: null })
+        continue
+      }
+
       // trip_id is null on the nightly sweep: a post-trip run is the only thing that names a trip.
       await env.PATTERN_QUEUE.send({ user_id: userId, cursor: null, trip_id: null })
-      // The same angler goes to v2 as well. It runs in shadow — it writes `pattern_findings` and
-      // never `pattern_cache` — so both engines see the same night's history and the parity gate
-      // has two outputs to compare. A v2 enqueue that fails must not cost the angler their v1
-      // feed, so it is best-effort and the sweep carries on.
+      // The same angler goes to v2 as well, in shadow: it writes `pattern_findings` and never
+      // `pattern_cache`, so both engines see the same night and the parity gate has two outputs to
+      // compare. A shadow enqueue that fails must not cost the angler their real feed, so it is
+      // best-effort and the sweep carries on.
       await env.ENGINE_QUEUE.send({ user_id: userId, trip_id: null }).catch((err) =>
         console.error('cron: could not enqueue v2 run for', userId, err),
       )
     }
-    console.log('cron: enqueued pattern recompute for', due.length, 'anglers at', new Date(now).toISOString())
+
+    console.log(
+      'cron: enqueued pattern recompute for',
+      due.length,
+      'anglers at',
+      new Date(now).toISOString(),
+      v2Primary ? '(v2 primary)' : '(v1 primary, v2 shadow)',
+    )
   },
 
   /**
@@ -93,6 +109,12 @@ export default {
 
 /** Must match the queue name in wrangler.toml. */
 const ENGINE_QUEUE_NAME = 'pattern-engine'
+
+/** The cutover, read in one place. Anything but the exact string leaves v1 in charge, so a typo in
+ * a deploy var fails safe: the angler keeps the feed that has been working. */
+function isV2Primary(env: CronBindings): boolean {
+  return env.PATTERN_ENGINE_VERSION === 'v2'
+}
 
 async function handleV1Batch(batch: MessageBatch<unknown>, env: CronBindings): Promise<void> {
   for (const message of batch.messages) {
@@ -152,9 +174,20 @@ async function handleEngineBatch(batch: MessageBatch<unknown>, env: CronBindings
     }
 
     const job = parsed.data
+    const primary = isV2Primary(env)
     try {
-      const outcome = await runEngineForUser(env.DB, job.user_id, Date.now())
-      logRun(job.user_id, outcome)
+      const outcome = await runEngineForUser(env.DB, job.user_id, Date.now(), { primary })
+      logRun(job.user_id, outcome, primary)
+
+      if (primary && outcome.firstPattern) {
+        // Best-effort, like every other outbound call in this product: a push that fails must not
+        // undo a recompute that succeeded. The once-ever guard is a conditional UPDATE in the
+        // database, so a redelivered message cannot produce a second announcement.
+        await announceFirstPattern(env, job.user_id).catch((err) =>
+          console.error('cron: first-pattern push failed for', job.user_id, err),
+        )
+      }
+
       message.ack()
     } catch (err) {
       console.error('cron: v2 engine failed for', job.user_id, err)

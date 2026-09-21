@@ -112,6 +112,19 @@ feed moves from `pattern_cache` to `pattern_findings`. Expect v2 multipliers to 
 cards on thin data, zero-catch negatives that v1 could not surface, and lure/color duplicates
 collapsed — those are the predicted differences, not regressions.
 
+**The cutover.** `PATTERN_ENGINE_VERSION` in `workers/cron/wrangler.toml` decides which engine the
+angler actually sees:
+
+| Value | What runs |
+| --- | --- |
+| `"v1"` (default) | v1 owns `pattern_cache` and the first-pattern push; v2 runs in shadow, writing only `pattern_findings`, `hypotheses.result_json` and the v2 columns of `pattern_runs` |
+| `"v2"` | v2 projects onto `pattern_cache` through the adapter, claims `pattern_runs.completed_at`, owns the push, and the sweep stops enqueueing v1 entirely |
+
+Anything but the exact string `"v2"` leaves v1 in charge, so a typo fails safe. Flipping it is a
+one-line commit that CI deploys, and flipping it back is the same size of change — which is the
+point: the cutover is reversible without a code change. Never run both engines onto `pattern_cache`
+at once; whichever finished last would win by accident.
+
 **Signing in locally.** Google OAuth won't work against localhost (placeholder client secret,
 unregistered redirect), so use the magic link, which the `ConsoleMailer` prints in the
 `wrangler dev` console. That mailer is **opt-in**: it logs a working sign-in credential, so an
