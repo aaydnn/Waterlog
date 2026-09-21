@@ -202,6 +202,21 @@ export const patternJobSchema = z.object({
 })
 export type PatternJob = z.infer<typeof patternJobSchema>
 
+/**
+ * A v2 pattern-engine job (ADR-0017). One angler per message on the `pattern-engine` queue,
+ * separate from v1's `waterlog-patterns` so a slow v2 run cannot delay a v1 recompute.
+ *
+ * No `cursor`: v1 chunks a run against a row budget and resumes, but v2 measures roughly 60ms at
+ * 40 trips and 210ms at 300, so it runs to completion inside one invocation with `limits.cpu_ms`
+ * as the backstop. `trip_id` names the trip when a run follows one ending, and is null on the
+ * nightly sweep.
+ */
+export const patternEngineJobSchema = z.object({
+  user_id: z.string(),
+  trip_id: z.string().nullable().default(null),
+})
+export type PatternEngineJob = z.infer<typeof patternEngineJobSchema>
+
 export const patternCacheRowSchema = z.object({
   id: z.string(),
   user_id: z.string(),

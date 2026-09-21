@@ -12,3 +12,6 @@ coverage/
 .claude/settings.local.json
 .wrangler-local/
 .pnpm-store/
+
+# VAPID keypair written by workers/cron/scripts/generate-vapid.mjs. Never commit a private key.
+.vapid.json

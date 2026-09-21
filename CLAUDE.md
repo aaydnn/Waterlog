@@ -88,6 +88,43 @@ needed, and its header lists the exact cards it should produce. Sign in as
 `patterns@waterlog.app` (tier `pro`, full cards) or `demo@waterlog.app` (tier `free`, the
 redacted teaser view). Start the API worker with the same `--persist-to` to read the feed back.
 
+The nightly sweep feeds **two** engines: v1 onto `waterlog-patterns` and v2 onto `pattern-engine`
+(ADR-0017). v2 runs in shadow — it writes `pattern_findings`, `hypotheses.result_json` and the v2
+columns of `pattern_runs`, and never `pattern_cache` — so both engines see the same night and the
+parity gate has two outputs to compare. Locally both queues are simulated by `wrangler dev`; in
+production each has to be created once by hand (see Deploy).
+
+**Running the parity gate.** `GET /__parity?user=<id>` on the cron worker runs both engines over
+one angler and prints their cards side by side. It is **opt-in**, because it reads a whole history:
+create `workers/cron/.dev.vars` (gitignored, see `.dev.vars.example`) with
+`ALLOW_PARITY_ROUTE = "true"`. Without it the path 404s like any other, so a deployed worker
+exposes nothing. Never set it in `wrangler.toml`.
+
+```bash
+cd workers/cron
+pnpm exec wrangler dev --persist-to ../../.wrangler-local --port 8799
+curl "http://127.0.0.1:8799/__parity?user=<user_id>"
+```
+
+Rows marked `**` are the gate: a v1 card v2 dropped that v2 cannot itself account for. Each needs a
+written reason (shrinkage, confounder, leave-one-out, or BH) or becomes a failing test, before the
+feed moves from `pattern_cache` to `pattern_findings`. Expect v2 multipliers to be smaller, fewer
+cards on thin data, zero-catch negatives that v1 could not surface, and lure/color duplicates
+collapsed — those are the predicted differences, not regressions.
+
+**The cutover.** `PATTERN_ENGINE_VERSION` in `workers/cron/wrangler.toml` decides which engine the
+angler actually sees:
+
+| Value | What runs |
+| --- | --- |
+| `"v1"` (default) | v1 owns `pattern_cache` and the first-pattern push; v2 runs in shadow, writing only `pattern_findings`, `hypotheses.result_json` and the v2 columns of `pattern_runs` |
+| `"v2"` | v2 projects onto `pattern_cache` through the adapter, claims `pattern_runs.completed_at`, owns the push, and the sweep stops enqueueing v1 entirely |
+
+Anything but the exact string `"v2"` leaves v1 in charge, so a typo fails safe. Flipping it is a
+one-line commit that CI deploys, and flipping it back is the same size of change — which is the
+point: the cutover is reversible without a code change. Never run both engines onto `pattern_cache`
+at once; whichever finished last would win by accident.
+
 **Signing in locally.** Google OAuth won't work against localhost (placeholder client secret,
 unregistered redirect), so use the magic link, which the `ConsoleMailer` prints in the
 `wrangler dev` console. That mailer is **opt-in**: it logs a working sign-in credential, so an
@@ -107,7 +144,10 @@ deploys on every PR (preview) and on push to `main` (production). Workers (api/e
 the waitlist worker deploy via `wrangler deploy` on merge to `main` only.
 
 **One-time setup CI cannot do for you.** `wrangler deploy` will not create a queue, so the cron
-worker needs `wrangler queues create waterlog-patterns` once before its first deploy. Web Push
+worker needs **two** queues created once before its first deploy — `wrangler queues create
+waterlog-patterns` for v1 and `wrangler queues create pattern-engine` for the v2 shadow run
+(ADR-0017). They are deliberately separate: sharing one would mean sharing a backlog and a retry
+budget, so a slow v2 run would delay a v1 recompute. Web Push
 needs a VAPID keypair: set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` as secrets
 on `waterlog-cron`, and the same public key as `VAPID_PUBLIC_KEY` on `waterlog-api` (that is what
 `GET /api/push/key` hands to browsers). Without them the nightly recompute still runs, the

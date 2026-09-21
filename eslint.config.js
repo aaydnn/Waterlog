@@ -27,6 +27,21 @@ export default tseslint.config(
     },
   },
   {
+    // Operator scripts run by hand under Node, never deployed — `workers/cron/scripts` and the
+    // like. They live inside a Worker package, so without this they are linted against the Workers
+    // runtime and every Node global reads as undefined.
+    files: ['**/scripts/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        URL: 'readonly',
+        TextEncoder: 'readonly',
+      },
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': [
