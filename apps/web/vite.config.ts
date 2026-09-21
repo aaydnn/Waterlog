@@ -18,6 +18,9 @@ export default defineConfig({
         // redirecting to Google, and the OAuth callback was hijacked the same way, so a
         // session could never be created. Those paths must reach the Pages Function proxy.
         navigateFallbackDenylist: [/^\/api\//],
+        // Push and notification-click handling, pulled into the generated worker. Workbox writes
+        // the precache logic; this adds the two listeners it knows nothing about (Epic 4).
+        importScripts: ['/push-sw.js'],
       },
       manifest: {
         name: 'WaterLog',

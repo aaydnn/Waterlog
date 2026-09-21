@@ -10,13 +10,15 @@
     "lint": "eslint .",
     "test": "vitest run",
     "migrate": "wrangler d1 migrations apply DB --local",
-    "seed": "wrangler d1 execute DB --local --file=../../migrations/seed/seed.sql"
+    "seed": "wrangler d1 execute DB --local --file=../../migrations/seed/seed.sql",
+    "seed:patterns": "wrangler d1 execute DB --local --file=../../migrations/seed/patterns-seed.sql"
   },
   "dependencies": {
     "@waterlog/schema": "workspace:*",
     "hono": "^4.7.0",
     "ulid": "^3.0.2",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@waterlog/patterns": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.9.14",

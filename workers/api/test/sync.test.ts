@@ -110,7 +110,9 @@ describe('POST /api/sync', () => {
     try {
       expect((await sync(cookie, batch)).status).toBe(500)
       expect((await sync(cookie, batch)).status).toBe(200)
-      expect(send).toHaveBeenCalledTimes(2)
+      // The catch job is what this is about: it failed once and was retried once. The replay
+      // also sweeps the fixture's months-old open trip closed, which sends its hours too.
+      expect(send.mock.calls.filter(([job]) => job.type === 'catch')).toHaveLength(2)
       const rows = await env.DB.prepare('SELECT id FROM catches WHERE user_id = ?').bind(userId).all()
       expect(rows.results).toHaveLength(1)
     } finally { send.mockRestore() }
@@ -214,7 +216,9 @@ describe('POST /api/sync', () => {
 
     send.mockClear()
     await sync(cookie, batch) // replay
-    expect(send).not.toHaveBeenCalled()
+    // Catch jobs only: the fixture trip is open and months old, so the replay is also the first
+    // sweep that sees it past the ceiling and closes it, which legitimately enqueues its hours.
+    expect(send.mock.calls.filter(([job]) => job.type === 'catch')).toHaveLength(0)
     send.mockRestore()
   })
 

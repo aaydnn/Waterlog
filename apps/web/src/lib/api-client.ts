@@ -3,6 +3,8 @@ import type {
   CatchDetail,
   JournalPage,
   Lure,
+  PatternFeed,
+  PushSubscriptionInput,
   Stats,
   Trip,
   User,
@@ -171,6 +173,11 @@ export const apiClient = {
   },
   catchDetail: (id: string) => request<CatchDetail>(`/api/journal/${id}`),
   stats: () => request<Stats>('/api/stats'),
+  patterns: (scope?: string) =>
+    request<PatternFeed>(`/api/patterns${scope ? `?scope=${encodeURIComponent(scope)}` : ''}`),
+  pushKey: () => request<{ key: string }>('/api/push/key'),
+  subscribeToPush: (body: PushSubscriptionInput) =>
+    request<{ ok: true }>('/api/push/subscriptions', { method: 'POST', body: JSON.stringify(body) }),
   listWaterBodies: () => request<{ water_bodies: WaterBody[] }>('/api/water-bodies'),
   createWaterBody: (body: WaterBodyCreateRequest) =>
     request<{ water_body: WaterBody }>('/api/water-bodies', { method: 'POST', body: JSON.stringify(body) }),

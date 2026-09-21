@@ -8,6 +8,7 @@ import { lureExists } from '../lib/lures'
 import { expectUser } from '../middleware/expect-user'
 import { requireAuth } from '../middleware/require-auth'
 import {
+  autoCloseStaleTrips,
   clampTripEnd,
   getTripById,
   tripCreateInput,
@@ -86,6 +87,13 @@ syncRoutes.post('/', requireAuth, expectUser, async (c) => {
   // One count for the whole batch: the per-account ceiling on enrichment jobs in flight.
   const budget = await dispatchBudget(db, user.id, now)
 
+  // Sweep first, so a trip left open past the ceiling is closed before this batch's trips are
+  // written and cannot keep shadowing a new one. Its hours are enqueued with the rest below.
+  // Deliberately *not* returned in the response: the client mirrors `trips` by client_id and
+  // would file a trip it never enqueued as a second local row, leaving the original still
+  // looking active. The client closes its own copy through the trip banner.
+  const autoClosed = await autoCloseStaleTrips(db, user.id, now)
+
   const resultTrips: Trip[] = []
   const errors: SyncError[] = []
   const clientTripIds = new Map<string, string>() // this batch's trip client_id -> server trip id
@@ -156,7 +164,9 @@ syncRoutes.post('/', requireAuth, expectUser, async (c) => {
 
   // Dispatch after catches are persisted so trips without a water-body centroid
   // can use a same-batch catch's coordinates, including synthetic orphan trips.
-  for (const trip of resultTrips) await enqueueTripHours(db, c.env.ENRICH_QUEUE, trip, budget)
+  for (const trip of [...autoClosed, ...resultTrips]) {
+    await enqueueTripHours(db, c.env.ENRICH_QUEUE, trip, budget)
+  }
 
   return c.json({ trips: resultTrips, catches: resultCatches, errors })
 })

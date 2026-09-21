@@ -1,13 +1,42 @@
-# WaterLog cron worker — nightly pattern recompute (stub in Epic 0).
+# WaterLog cron worker — nightly pattern recompute (packet §08/§10).
+#
+# Both producer and consumer of the same queue: the scheduled trigger enqueues one job per angler,
+# and the consumer below computes one angler per message. That is what gives each angler their own
+# CPU budget and their own retries instead of one invocation walking every user.
 name = "waterlog-cron"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
 [triggers]
-# UTC — nightly recompute; exact hour revisited later.
+# 08:00 UTC — overnight for the founder waters, and comfortably after the last evening trip has
+# synced and enriched.
 crons = ["0 8 * * *"]
 
 [[d1_databases]]
 binding = "DB"
 database_name = "waterlog-db"
 database_id = "8b96aa01-ac65-4e49-a0d0-abc785d60c43"
+migrations_dir = "../../migrations"
+
+[[queues.producers]]
+binding = "PATTERN_QUEUE"
+queue = "waterlog-patterns"
+
+[[queues.consumers]]
+queue = "waterlog-patterns"
+# One angler per message, so a slow one cannot take a batch of others down with it.
+max_batch_size = 1
+max_retries = 4
+
+[vars]
+# Where a push notification's link lands — the Pages origin the browser knows, never this Worker's
+# own hostname.
+APP_URL = "https://waterlog-web.pages.dev"
+#
+# VAPID keys deliberately do NOT appear here. The private key signs push authentication tokens for
+# this origin; every environment that loads this file is a deployed one. Set them as secrets:
+#   wrangler secret put VAPID_PUBLIC_KEY
+#   wrangler secret put VAPID_PRIVATE_KEY
+#   wrangler secret put VAPID_SUBJECT
+# Without them the recompute still runs and the first-pattern push is skipped, leaving the
+# once-ever flag unclaimed so the announcement survives until the keys are configured.

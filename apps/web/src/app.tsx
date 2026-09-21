@@ -4,6 +4,7 @@ import './app.css'
 import { SignIn } from './features/auth/sign-in'
 import { CaptureFlow } from './features/capture/capture-flow'
 import { Journal } from './features/journal/journal'
+import { PatternsView } from './features/patterns/patterns-view'
 import { StatsView } from './features/stats/stats-view'
 import { TripBanner } from './features/trips/trip-banner'
 import { ApiError, setSessionMismatchHandler, setUnauthorizedHandler } from './lib/api-client'
@@ -197,7 +198,7 @@ export function App({ engine, auth = webAuth }: AppProps = {}) {
         </button>
       </header>
       <TripBanner />
-      {view === 'journal' ? <Journal /> : <StatsView />}
+      {view === 'journal' ? <Journal /> : view === 'patterns' ? <PatternsView /> : <StatsView />}
       <CaptureFlow />
       <BottomNav view={view} onChange={setView} />
       <DiveTransition key={session.user.id} />

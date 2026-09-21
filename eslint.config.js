@@ -19,6 +19,14 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // Service worker scripts shipped as static assets. They run in a worker global scope, not a
+    // window, so `self` and the clients API are defined for them and nowhere else.
+    files: ['**/public/*-sw.js'],
+    languageOptions: {
+      globals: { self: 'readonly', clients: 'readonly', caches: 'readonly' },
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': [
