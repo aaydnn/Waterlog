@@ -18,4 +18,13 @@ export interface CronBindings {
   VAPID_SUBJECT?: string
   /** Where a push notification's link should land. */
   APP_URL?: string
+  /**
+   * Opt-in switch for the parity harness route (brief §7). Absent, `GET /__parity` 404s exactly
+   * as an unknown path would, so a deployed worker exposes nothing.
+   *
+   * Same shape and the same reason as the ConsoleMailer flag in ADR-0011: the capability is real
+   * and useful locally, so it is opted into by a gitignored `.dev.vars`, never by `wrangler.toml`.
+   * Do not set it in production — it reads one angler's whole history.
+   */
+  ALLOW_PARITY_ROUTE?: string
 }

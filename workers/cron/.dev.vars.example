@@ -1,0 +1,15 @@
+# Copy to .dev.vars (gitignored) for local development of the cron worker.
+#
+# Nothing here belongs in wrangler.toml: every environment that loads wrangler.toml is a deployed
+# one, and both of these are local-only capabilities.
+
+# Opts into GET /__parity, the parity harness route (brief §7, ADR-0017). Absent, that path 404s
+# exactly like any other unknown path, so a deployed worker exposes nothing.
+#
+# It prints one angler's whole pattern comparison, v1 beside v2. Never set this in production.
+ALLOW_PARITY_ROUTE = "true"
+
+# VAPID keys are NOT set here. The private key signs push authentication tokens for this origin, so
+# it lives only as a secret on the deployed worker:
+#   wrangler secret put VAPID_PRIVATE_KEY
+# Without them the nightly recompute still runs and the first-pattern push is skipped.

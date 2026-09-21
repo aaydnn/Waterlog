@@ -1,8 +1,12 @@
 import { patternEngineJobSchema, patternJobSchema } from '@waterlog/schema'
 import type { CronBindings } from './env'
-import { usersDueForRecompute } from './lib/load'
+import { computePatterns } from '@waterlog/patterns'
+import { runEngine } from '@waterlog/pattern-engine'
+import { loadHistory, usersDueForRecompute } from './lib/load'
 import { recomputeUser } from './lib/recompute'
 import { announceFirstPattern } from './lib/notify'
+import { loadEngineInput } from './lib/v2/load'
+import { compareEngines, formatParityReport } from './lib/v2/parity'
 import { logRun, runEngineForUser } from './lib/v2/run'
 
 /**
@@ -47,6 +51,37 @@ export default {
     console.log('cron: enqueued pattern recompute for', due.length, 'anglers at', new Date(now).toISOString())
   },
 
+  /**
+   * The parity harness (brief §7), and nothing else.
+   *
+   * This worker has no business serving requests, so the only route exists to run both engines
+   * over one angler's real history and print the comparison. It is off unless
+   * `ALLOW_PARITY_ROUTE` is set, which `wrangler.toml` never does — see `env.ts`.
+   *
+   *   cd workers/cron
+   *   pnpm exec wrangler dev --persist-to ../../.wrangler-local --port 8799
+   *   curl "http://127.0.0.1:8799/__parity?user=<user_id>"
+   */
+  async fetch(request: Request, env: CronBindings): Promise<Response> {
+    const url = new URL(request.url)
+    if (env.ALLOW_PARITY_ROUTE !== 'true' || url.pathname !== '/__parity') {
+      return new Response('Not found', { status: 404 })
+    }
+
+    const userId = url.searchParams.get('user')
+    if (!userId) return new Response('Pass ?user=<user_id>\n', { status: 400 })
+
+    const [v1, v2Input] = await Promise.all([
+      loadHistory(env.DB, userId),
+      loadEngineInput(env.DB, userId, Date.now()),
+    ])
+    const report = compareEngines(computePatterns(v1).patterns, runEngine(v2Input))
+
+    return new Response(formatParityReport(report) + '\n', {
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    })
+  },
+
   async queue(batch: MessageBatch<unknown>, env: CronBindings): Promise<void> {
     // One Worker, two queues. Dispatching on the queue name rather than on a field in the body
     // keeps the two engines' message shapes independent: v2 has no cursor and never will, and v1
@@ -60,43 +95,43 @@ export default {
 const ENGINE_QUEUE_NAME = 'pattern-engine'
 
 async function handleV1Batch(batch: MessageBatch<unknown>, env: CronBindings): Promise<void> {
-    for (const message of batch.messages) {
-      const parsed = patternJobSchema.safeParse(message.body)
-      if (!parsed.success) {
-        // Nothing productive to retry on a malformed message; dropping beats a poison-pill loop.
-        console.error('cron: dropping malformed pattern job', message.id, parsed.error.message)
-        message.ack()
+  for (const message of batch.messages) {
+    const parsed = patternJobSchema.safeParse(message.body)
+    if (!parsed.success) {
+      // Nothing productive to retry on a malformed message; dropping beats a poison-pill loop.
+      console.error('cron: dropping malformed pattern job', message.id, parsed.error.message)
+      message.ack()
+      continue
+    }
+
+    const job = parsed.data
+    try {
+      const outcome = await recomputeUser(env.DB, job.user_id, job.cursor, Date.now())
+
+      if (!outcome.completed) {
+        // Out of budget with scopes left. The cursor is already recorded, so the follow-up
+        // message is a resume, not a restart.
+        await env.PATTERN_QUEUE.send({ user_id: job.user_id, cursor: outcome.cursor, trip_id: job.trip_id })
+      } else if (outcome.firstPattern) {
+        // Best-effort, like every other outbound call in this product: a push that fails must
+        // not undo a recompute that succeeded.
+        await announceFirstPattern(env, job.user_id).catch((err) =>
+          console.error('cron: first-pattern push failed for', job.user_id, err),
+        )
+      }
+
+      message.ack()
+    } catch (err) {
+      console.error('cron: recompute failed for', job.user_id, err)
+      if (message.attempts < MAX_ATTEMPTS) {
+        message.retry({ delaySeconds: backoffSeconds(message.attempts) })
         continue
       }
-
-      const job = parsed.data
-      try {
-        const outcome = await recomputeUser(env.DB, job.user_id, job.cursor, Date.now())
-
-        if (!outcome.completed) {
-          // Out of budget with scopes left. The cursor is already recorded, so the follow-up
-          // message is a resume, not a restart.
-          await env.PATTERN_QUEUE.send({ user_id: job.user_id, cursor: outcome.cursor, trip_id: job.trip_id })
-        } else if (outcome.firstPattern) {
-          // Best-effort, like every other outbound call in this product: a push that fails must
-          // not undo a recompute that succeeded.
-          await announceFirstPattern(env, job.user_id).catch((err) =>
-            console.error('cron: first-pattern push failed for', job.user_id, err),
-          )
-        }
-
-        message.ack()
-      } catch (err) {
-        console.error('cron: recompute failed for', job.user_id, err)
-        if (message.attempts < MAX_ATTEMPTS) {
-          message.retry({ delaySeconds: backoffSeconds(message.attempts) })
-          continue
-        }
-        // Retries exhausted. The angler keeps last night's feed, which is stale rather than wrong,
-        // and tomorrow's sweep will pick them up again.
-        message.ack()
-      }
+      // Retries exhausted. The angler keeps last night's feed, which is stale rather than wrong,
+      // and tomorrow's sweep will pick them up again.
+      message.ack()
     }
+  }
 }
 
 /**
